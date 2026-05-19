@@ -60,6 +60,7 @@ Validation:
 - npm run start:dev completed successfully with 0 compile errors
 
 ### Slice 2 — Users
+Status: Completed
 
 Goal:
 Implement production-quality user management with strong validation, clean API contracts, secure password handling, and comprehensive automated tests.
@@ -169,12 +170,116 @@ Deliverables:
 - Clean API responses
 - Passing test suite
 
-### Slice 3: Auth
-- Login
-- JWT generation
-- Auth guard
-- Logout strategy
-- Current user endpoint
+### Slice 3 — Authentication
+
+Goal:
+Implement JWT-based authentication for IssueFlow while keeping the auth layer simple, testable, and aligned with the assignment contract.
+
+Endpoints:
+- POST /auth/login
+- POST /auth/logout
+- GET /auth/me
+
+Scope:
+- AuthModule
+- AuthController
+- AuthService
+- LoginDto
+- JwtAuthGuard
+- JwtStrategy
+- Current user extraction
+- JWT signing and validation
+- Basic logout strategy
+- Auth tests
+
+Business rules:
+- login accepts username and password
+- login returns accessToken, tokenType, expiresIn
+- invalid credentials return UnauthorizedException
+- password comparison uses bcrypt
+- /auth/me returns the authenticated user profile
+- protected endpoints require a valid Bearer token
+- logout invalidates the current token or uses stateless expiry strategy
+
+Validation:
+LoginDto:
+- username required
+- password required
+- both must be strings
+- empty values rejected
+
+Architecture:
+Controller:
+- thin controller only
+- delegate login/logout/me logic to AuthService
+- use guards only where needed
+
+Service:
+- validate user by username
+- compare password with passwordHash
+- sign JWT payload
+- return safe user profile without passwordHash
+- do not duplicate user mapping logic if reusable from Users module
+
+JWT strategy:
+- payload should include user id, username, role
+- token expiration configured centrally
+- secret should come from environment variable with safe local default
+
+Logout strategy:
+- keep simple for MVP
+- either document stateless token expiry
+- or implement an in-memory deny-list if simple enough
+- avoid overengineering persistent token revocation in this slice
+
+Testing strategy:
+AuthService tests:
+- login succeeds with valid credentials
+- login returns accessToken, tokenType, expiresIn
+- login rejects missing user
+- login rejects invalid password
+- returned user/token payload never exposes passwordHash
+
+AuthController tests:
+- delegates login to service
+- delegates logout to service
+- /auth/me returns current user profile
+
+Guard/strategy tests:
+- JwtStrategy validates payload
+- invalid token is rejected where practical
+
+Out of scope:
+- refresh tokens
+- password reset
+- email verification
+- OAuth
+- MFA
+- RBAC permissions beyond role in payload
+- persistent sessions
+- full user registration redesign
+- protecting every endpoint before basic auth is stable
+
+Validation checklist:
+- npm run test
+- npm run build
+- npm run start:dev
+- manual smoke:
+  - POST /users creates user with password
+  - POST /auth/login returns token
+  - GET /auth/me with Bearer token returns user profile
+  - GET /auth/me without token returns 401
+
+Deliverables:
+- AuthModule
+- AuthController
+- AuthService
+- LoginDto
+- JwtStrategy
+- JwtAuthGuard
+- Tests
+- Working JWT login flow
+- Safe profile responses without passwordHash
 
 ### Slice 4: Projects
 - Project CRUD
