@@ -1,0 +1,24 @@
+---
+alwaysApply: true
+---
+# Testing and Quality Rules
+
+Testing priorities:
+- Cover core business rules before edge features.
+- Test auth flow.
+- Test ticket status transitions.
+- Test that DONE tickets cannot be updated.
+- Test validation failures.
+- Test concurrency/version conflict behavior if implemented.
+- Test audit log for state-changing actions where implemented.
+
+Before completing a slice:
+- Run tests.
+- Run lint/build if available.
+- Check for broken imports.
+- Check for missing validation.
+- Check for unhandled null/undefined cases.
+- Check that the app remains runnable.
+
+Do not fake tests just to increase coverage.
+Tests should verify meaningful behavior.

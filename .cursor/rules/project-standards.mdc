@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+# Project Standards
+
+Work incrementally in small vertical slices.
+
+Priorities:
+- Keep the app runnable after every change.
+- Prefer one complete working flow over many unfinished features.
+- Avoid overengineering and premature abstractions.
+- Do not rewrite unrelated code.
+- Keep files small, cohesive, and easy to review.
+- Use clear names for modules, services, DTOs, entities, and methods.
+- Controllers should stay thin.
+- Business logic belongs in services.
+- Validate all incoming API input.
+- Return informative errors.
+- Prefer simple, production-oriented solutions.
+- Do not add features that are not required unless core requirements are stable.

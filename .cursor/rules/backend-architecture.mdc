@@ -1,0 +1,26 @@
+---
+alwaysApply: true
+---
+# Backend Architecture Rules
+
+This is a NestJS backend API for IssueFlow.
+
+Follow the assignment contract:
+- Use README.md as the API contract.
+- Implement JWT authentication.
+- Protect API endpoints.
+- Use PostgreSQL via the provided compose.yml.
+- Implement Users, Auth, Projects, Tickets, Comments.
+- Enforce ticket lifecycle rules:
+  TODO -> IN_PROGRESS -> IN_REVIEW -> DONE only.
+- A DONE ticket cannot be updated.
+- Prevent concurrent updates where required.
+
+Architecture:
+- One NestJS module per domain.
+- Use DTOs for request validation.
+- Use services for business rules.
+- Use repositories/ORM access cleanly.
+- Keep database writes transactional when multiple records change.
+- Record state-changing actions in Audit Log where implemented.
+- Prefer optimistic locking/version fields for concurrency safety.
