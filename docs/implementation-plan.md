@@ -18,10 +18,46 @@ Build a RESTful backend API for IssueFlow, a lightweight project and ticket mana
 
 ## Vertical Slices
 
-### Slice 1: Foundation
-- Validate project startup
-- Configure database
-- Define core entities and enums
+### Slice 1 — Foundation Infrastructure
+Status: In Progress
+
+Goal:
+Establish the backend foundation before implementing business APIs.
+
+Scope:
+- Configure PostgreSQL connection
+- Configure TypeORM
+- Add global validation
+- Define core enums
+- Define core entities
+- Establish entity relationships
+- Keep application runnable
+
+Entities:
+- User
+- Project
+- Ticket
+- Comment
+- AuditLog
+
+Out of scope:
+- CRUD APIs
+- Authentication
+- Authorization
+- Business rules
+- Background jobs
+- CSV import/export
+
+Implemented:
+- Project opened and verified locally
+- Dependencies installed
+- PostgreSQL container started through Docker Compose
+- NestJS app started successfully in watch mode
+
+Validation:
+- npm install completed successfully
+- docker compose up -d completed successfully
+- npm run start:dev completed successfully with 0 compile errors
 
 ### Slice 2: Users
 - Create user
