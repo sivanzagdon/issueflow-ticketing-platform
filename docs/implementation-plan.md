@@ -59,12 +59,115 @@ Validation:
 - docker compose up -d completed successfully
 - npm run start:dev completed successfully with 0 compile errors
 
-### Slice 2: Users
-- Create user
-- Get user by id
-- Get all users
-- Update user
-- Delete user
+### Slice 2 — Users
+
+Goal:
+Implement production-quality user management with strong validation, clean API contracts, secure password handling, and comprehensive automated tests.
+
+Endpoints:
+- POST /users
+- GET /users
+- GET /users/:userId
+- POST /users/update/:userId
+- DELETE /users/:userId
+
+Scope:
+- UsersController
+- UsersService
+- CreateUserDto
+- UpdateUserDto
+- Repository integration
+- ValidationPipe integration
+- Password hashing
+- Exception mapping
+- Unit tests
+
+Business rules:
+- username must be unique
+- email must be unique
+- passwordHash must never be exposed in API responses
+- password must be hashed before persistence
+- invalid DTO payloads must fail validation
+- update supports partial updates
+- deleting a missing user returns NotFoundException
+- fetching a missing user returns NotFoundException
+
+Validation:
+CreateUserDto:
+- username required
+- email valid
+- fullName required
+- role must be valid enum
+- password minimum length 8
+
+UpdateUserDto:
+- all fields optional
+- role enum validation
+- no empty fullName
+
+Architecture:
+Controller:
+- thin controller only
+- delegate business logic to service
+- ParseIntPipe for route params
+
+Service:
+- repository-driven
+- map entities to safe response objects
+- central passwordHash stripping helper
+- map postgres unique violation (23505) to ConflictException
+- throw NotFoundException when entity missing
+
+Testing strategy:
+DTO tests:
+- valid payload
+- invalid email
+- invalid role
+- missing required fields
+- short password
+
+UsersController tests:
+- verify delegation to service
+- verify route contracts
+- verify passwordHash never exposed
+
+UsersService tests:
+- create hashes password
+- create omits passwordHash
+- duplicate username throws ConflictException
+- duplicate email throws ConflictException
+- findAll omits passwordHash
+- findOne omits passwordHash
+- findOne missing user throws NotFoundException
+- update user fields
+- update missing user throws NotFoundException
+- remove existing user
+- remove missing user throws NotFoundException
+
+Out of scope:
+- JWT auth
+- Guards
+- RBAC
+- Refresh tokens
+- Current user context
+- Audit logging integration
+- Email verification
+- Password reset
+
+Validation checklist:
+- npm run build
+- npm run test
+- all users tests passing
+- no compile errors
+- Nest app starts successfully
+
+Deliverables:
+- UsersController
+- UsersService
+- DTOs
+- Tests
+- Clean API responses
+- Passing test suite
 
 ### Slice 3: Auth
 - Login

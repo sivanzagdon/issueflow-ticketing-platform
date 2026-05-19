@@ -1,6 +1,6 @@
 import { UserRole } from '../../common/enums/user-role.enum';
 import { User } from '../entities/user.entity';
-import { UserResponse } from '../users.service';
+import { UserResponse } from '../users.mapper';
 
 export const mockUserEntity = (overrides: Partial<User> = {}): User => ({
   id: 1,

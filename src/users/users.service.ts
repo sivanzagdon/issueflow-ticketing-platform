@@ -1,11 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
+import { QueryFailedError, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+import { toUserResponse, UserResponse } from './users.mapper';
 
-export type UserResponse = Omit<User, 'passwordHash'>;
+export type { UserResponse };
 
 @Injectable()
 export class UsersService {
@@ -14,23 +21,79 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  create(_createUserDto: CreateUserDto): Promise<UserResponse> {
-    throw new Error('Not implemented');
+  async create(createUserDto: CreateUserDto): Promise<UserResponse> {
+    const plainPassword =
+      createUserDto.password ?? randomBytes(32).toString('hex');
+    const passwordHash = await this.hashPassword(plainPassword);
+
+    const user = this.userRepository.create({
+      username: createUserDto.username,
+      email: createUserDto.email,
+      fullName: createUserDto.fullName,
+      role: createUserDto.role,
+      passwordHash,
+    });
+
+    try {
+      const saved = await this.userRepository.save(user);
+      return toUserResponse(saved);
+    } catch (error) {
+      this.handlePersistenceError(error);
+    }
   }
 
-  findAll(): Promise<UserResponse[]> {
-    throw new Error('Not implemented');
+  async findAll(): Promise<UserResponse[]> {
+    const users = await this.userRepository.find();
+    return users.map(toUserResponse);
   }
 
-  findOne(_id: number): Promise<UserResponse> {
-    throw new Error('Not implemented');
+  async findOne(id: number): Promise<UserResponse> {
+    const user = await this.getUserOrThrow(id);
+    return toUserResponse(user);
   }
 
-  update(_id: number, _updateUserDto: UpdateUserDto): Promise<UserResponse> {
-    throw new Error('Not implemented');
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<UserResponse> {
+    const user = await this.getUserOrThrow(id);
+
+    if (updateUserDto.fullName !== undefined) {
+      user.fullName = updateUserDto.fullName;
+    }
+    if (updateUserDto.role !== undefined) {
+      user.role = updateUserDto.role;
+    }
+
+    try {
+      const saved = await this.userRepository.save(user);
+      return toUserResponse(saved);
+    } catch (error) {
+      this.handlePersistenceError(error);
+    }
   }
 
-  remove(_id: number): Promise<void> {
-    throw new Error('Not implemented');
+  async remove(id: number): Promise<void> {
+    await this.getUserOrThrow(id);
+    await this.userRepository.delete({ id });
+  }
+
+  private async getUserOrThrow(id: number): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new NotFoundException(`User ${id} not found`);
+    }
+    return user;
+  }
+
+  private async hashPassword(plain: string): Promise<string> {
+    return bcrypt.hash(plain, 10);
+  }
+
+  private handlePersistenceError(error: unknown): never {
+    if (
+      error instanceof QueryFailedError &&
+      (error.driverError as { code?: string })?.code === '23505'
+    ) {
+      throw new ConflictException('User with this username or email already exists');
+    }
+    throw error;
   }
 }
