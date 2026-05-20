@@ -171,6 +171,7 @@ Deliverables:
 - Passing test suite
 
 ### Slice 3 — Authentication
+Status: Completed
 
 Goal:
 Implement JWT-based authentication for IssueFlow while keeping the auth layer simple, testable, and aligned with the assignment contract.
@@ -281,9 +282,105 @@ Deliverables:
 - Working JWT login flow
 - Safe profile responses without passwordHash
 
-### Slice 4: Projects
-- Project CRUD
-- Owner validation
+### Slice 4 — Projects
+Status: Planned
+
+Goal:
+Implement project management with clean CRUD APIs, owner validation, JWT-protected routes, safe error handling, and test-first development.
+
+Endpoints:
+- POST /projects
+- GET /projects
+- GET /projects/:projectId
+- POST /projects/update/:projectId
+- DELETE /projects/:projectId
+
+Scope:
+- ProjectsController
+- ProjectsService
+- CreateProjectDto
+- UpdateProjectDto
+- Repository integration
+- Owner user validation
+- JwtAuthGuard on project routes
+- Unit tests
+
+Security:
+- all project endpoints require JWT authentication
+- use existing JwtAuthGuard from Slice 3
+- do not add RBAC/admin-only rules yet
+
+Business rules:
+- project name is required
+- description is optional
+- ownerId is required on create
+- ownerId must reference an existing user
+- missing project returns NotFoundException
+- missing owner returns NotFoundException
+- update supports name and description only
+- project responses should include ownerId
+- deletion should remain compatible with future soft-delete support
+
+Testing strategy:
+DTO tests:
+- valid create payload
+- missing name fails
+- missing ownerId fails
+- invalid ownerId fails
+- valid update payload
+- empty name fails
+
+ProjectsService tests:
+- creates project when owner exists
+- rejects create when owner does not exist
+- findAll returns projects
+- findOne returns project by id
+- findOne missing project throws NotFoundException
+- update name/description
+- update missing project throws NotFoundException
+- remove existing project
+- remove missing project throws NotFoundException
+
+ProjectsController tests:
+- delegates create/findAll/findOne/update/remove to service
+- uses ParseIntPipe for route params
+- applies JwtAuthGuard to project routes
+
+Architecture:
+Controller:
+- thin controller only
+- protected by JwtAuthGuard
+- delegate business logic to service
+
+Service:
+- repository-driven
+- validate owner using UsersService or User repository
+- keep project response simple
+- do not implement tickets logic yet
+- keep deletion logic compatible with future soft delete
+
+Out of scope:
+- Tickets
+- Comments
+- Audit log
+- RBAC/admin-only permissions
+- Soft-delete restore endpoints
+- Project workload
+- Auto assignment
+- Application-wide global JWT guard
+
+Validation checklist:
+- npm run test
+- npm run build
+- npm run start:dev
+
+Deliverables:
+- ProjectsController
+- ProjectsService
+- DTOs
+- Tests
+- JWT-protected project routes
+- Passing test suite
 
 ### Slice 5: Tickets
 - Ticket CRUD
