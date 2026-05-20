@@ -4,11 +4,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
-import { UserRole } from '../common/enums/user-role.enum';
 import { User } from '../users/entities/user.entity';
 import { mockUserEntity, mockUserResponse } from '../users/testing/user.fixtures';
 import { AuthService } from './auth.service';
 import { mockLoginResponse } from './testing/auth.fixtures';
+import { TokenDenylistService } from './token-denylist.service';
+import { Request } from 'express';
 
 jest.mock('bcrypt', () => ({
   compare: jest.fn(),
@@ -18,6 +19,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let userRepository: jest.Mocked<Repository<User>>;
   let jwtService: jest.Mocked<JwtService>;
+  let tokenDenylist: jest.Mocked<Pick<TokenDenylistService, 'invalidate'>>;
   const bcryptCompare = bcrypt.compare as jest.Mock;
 
   const loginDto = { username: 'jdoe', password: 'secret' };
@@ -33,11 +35,16 @@ describe('AuthService', () => {
       sign: jest.fn(),
     } as unknown as jest.Mocked<JwtService>;
 
+    tokenDenylist = {
+      invalidate: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: getRepositoryToken(User), useValue: userRepository },
         { provide: JwtService, useValue: jwtService },
+        { provide: TokenDenylistService, useValue: tokenDenylist },
       ],
     }).compile();
 
@@ -154,6 +161,26 @@ describe('AuthService', () => {
       await expect(
         service.validateUser(loginDto.username, loginDto.password),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe('logout', () => {
+    it('invalidates the bearer token from the request', async () => {
+      const req = {
+        headers: { authorization: 'Bearer my-access-token' },
+      } as Request;
+
+      await service.logout(req);
+
+      expect(tokenDenylist.invalidate).toHaveBeenCalledWith('my-access-token');
+    });
+
+    it('calls invalidate with empty string when Authorization header is missing', async () => {
+      const req = { headers: {} } as Request;
+
+      await service.logout(req);
+
+      expect(tokenDenylist.invalidate).toHaveBeenCalledWith('');
     });
   });
 });

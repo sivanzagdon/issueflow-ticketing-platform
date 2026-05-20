@@ -2,12 +2,15 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { Request } from 'express';
+import { ExtractJwt } from 'passport-jwt';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { toUserResponse, UserResponse } from '../users/users.mapper';
 import { JWT_EXPIRES_IN_SECONDS } from './auth.constants';
 import { LoginResponse } from './auth.types';
 import { LoginDto } from './dto/login.dto';
+import { TokenDenylistService } from './token-denylist.service';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +18,7 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly jwtService: JwtService,
+    private readonly tokenDenylist: TokenDenylistService,
   ) {}
 
   async login(loginDto: LoginDto): Promise<LoginResponse> {
@@ -50,7 +54,8 @@ export class AuthService {
     return toUserResponse(user);
   }
 
-  async logout(): Promise<void> {
-    return;
+  async logout(request: Request): Promise<void> {
+    const token = ExtractJwt.fromAuthHeaderAsBearerToken()(request);
+    this.tokenDenylist.invalidate(token ?? '');
   }
 }

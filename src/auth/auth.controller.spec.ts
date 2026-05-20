@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Request } from 'express';
 import { mockUserResponse } from '../users/testing/user.fixtures';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -41,12 +42,15 @@ describe('AuthController', () => {
   });
 
   describe('logout', () => {
-    it('delegates to AuthService.logout', async () => {
+    it('delegates to AuthService.logout with request', async () => {
+      const req = {
+        headers: { authorization: 'Bearer abc.def.ghi' },
+      } as Request;
       authService.logout.mockResolvedValue(undefined);
 
-      await controller.logout();
+      await controller.logout(req);
 
-      expect(authService.logout).toHaveBeenCalled();
+      expect(authService.logout).toHaveBeenCalledWith(req);
     });
   });
 

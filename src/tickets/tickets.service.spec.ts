@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -178,6 +179,7 @@ describe('TicketsService', () => {
       ticketRepository.save.mockResolvedValue(updated);
 
       const result = await service.update(1, {
+        version: 1,
         title: 'New title',
         description: 'New description',
       });
@@ -198,6 +200,7 @@ describe('TicketsService', () => {
       ticketRepository.save.mockResolvedValue(updated);
 
       const result = await service.update(1, {
+        version: 1,
         priority: TicketPriority.CRITICAL,
       });
 
@@ -211,7 +214,7 @@ describe('TicketsService', () => {
       usersService.findOne.mockResolvedValue(mockUserResponse({ id: 3 }));
       ticketRepository.save.mockResolvedValue(updated);
 
-      const result = await service.update(1, { assigneeId: 3 });
+      const result = await service.update(1, { version: 1, assigneeId: 3 });
 
       expect(usersService.findOne).toHaveBeenCalledWith(3);
       expect(result.assigneeId).toBe(3);
@@ -224,6 +227,7 @@ describe('TicketsService', () => {
       ticketRepository.save.mockResolvedValue(updated);
 
       const result = await service.update(1, {
+        version: 1,
         status: TicketStatus.IN_PROGRESS,
       });
 
@@ -236,7 +240,10 @@ describe('TicketsService', () => {
       ticketRepository.findOne.mockResolvedValue(existing);
       ticketRepository.save.mockResolvedValue(updated);
 
-      const result = await service.update(1, { status: TicketStatus.IN_REVIEW });
+      const result = await service.update(1, {
+        version: 1,
+        status: TicketStatus.IN_REVIEW,
+      });
 
       expect(result.status).toBe(TicketStatus.IN_REVIEW);
     });
@@ -247,7 +254,10 @@ describe('TicketsService', () => {
       ticketRepository.findOne.mockResolvedValue(existing);
       ticketRepository.save.mockResolvedValue(updated);
 
-      const result = await service.update(1, { status: TicketStatus.DONE });
+      const result = await service.update(1, {
+        version: 1,
+        status: TicketStatus.DONE,
+      });
 
       expect(result.status).toBe(TicketStatus.DONE);
     });
@@ -258,7 +268,7 @@ describe('TicketsService', () => {
       );
 
       await expect(
-        service.update(1, { status: TicketStatus.TODO }),
+        service.update(1, { version: 1, status: TicketStatus.TODO }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -268,7 +278,7 @@ describe('TicketsService', () => {
       );
 
       await expect(
-        service.update(1, { status: TicketStatus.DONE }),
+        service.update(1, { version: 1, status: TicketStatus.DONE }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -278,7 +288,7 @@ describe('TicketsService', () => {
       );
 
       await expect(
-        service.update(1, { status: TicketStatus.IN_PROGRESS }),
+        service.update(1, { version: 1, status: TicketStatus.IN_PROGRESS }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -288,11 +298,11 @@ describe('TicketsService', () => {
       );
 
       await expect(
-        service.update(1, { status: TicketStatus.IN_REVIEW }),
+        service.update(1, { version: 1, status: TicketStatus.IN_REVIEW }),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       await expect(
-        service.update(1, { status: TicketStatus.DONE }),
+        service.update(1, { version: 1, status: TicketStatus.DONE }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -302,7 +312,7 @@ describe('TicketsService', () => {
       );
 
       await expect(
-        service.update(1, { title: 'No changes allowed' }),
+        service.update(1, { version: 1, title: 'No changes allowed' }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -310,8 +320,33 @@ describe('TicketsService', () => {
       ticketRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.update(999, { title: 'x' }),
+        service.update(999, { version: 1, title: 'x' }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects stale version with ConflictException', async () => {
+      ticketRepository.findOne.mockResolvedValue(
+        mockTicketEntity({ version: 2 }),
+      );
+
+      await expect(
+        service.update(1, { version: 1, title: 'Stale' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('succeeds when dto version matches entity version', async () => {
+      const existing = mockTicketEntity({ version: 3 });
+      const updated = mockTicketEntity({ version: 3, title: 'Aligned' });
+      ticketRepository.findOne.mockResolvedValue(existing);
+      ticketRepository.save.mockResolvedValue(updated);
+
+      const result = await service.update(1, {
+        version: 3,
+        title: 'Aligned',
+      });
+
+      expect(result.title).toBe('Aligned');
+      expect(ticketRepository.save).toHaveBeenCalled();
     });
   });
 

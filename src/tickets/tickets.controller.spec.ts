@@ -108,7 +108,7 @@ describe('TicketsController', () => {
     });
 
     it('delegates to TicketsService.update', async () => {
-      const dto: UpdateTicketDto = { status: TicketStatus.IN_PROGRESS };
+      const dto: UpdateTicketDto = { version: 1, status: TicketStatus.IN_PROGRESS };
       const updated = mockTicketResponse({ status: TicketStatus.IN_PROGRESS });
       ticketsService.update.mockResolvedValue(updated);
 

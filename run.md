@@ -8,7 +8,7 @@ This document describes how to install, configure, and run the IssueFlow backend
 
 IssueFlow is a **NestJS** REST API for a lightweight project and issue-tracking platform (AT&T homework / TDP scope). The assignment API contract is defined in [**README.md**](README.md).
 
-**Implemented today:** foundation (PostgreSQL + TypeORM), **Users**, **JWT Authentication**, and **Projects** APIs with unit tests. **Tickets**, **Comments**, and most extended README features are **not** implemented yet.
+**Implemented today:** foundation (PostgreSQL + TypeORM), **Users** (JWT-protected except **POST /users** registration), **JWT Authentication** (login, protected `/auth/me`, **logout** with in-memory token invalidation), **Projects**, and **Tickets** with unit tests and minimal e2e coverage. **Comments** and most extended README features are **not** implemented yet.
 
 ---
 
@@ -178,13 +178,13 @@ All **project** routes (**POST/GET/PATCH/DELETE** under `/projects`) require the
 
 ### Users API
 
-**Users** routes (`/users`, etc.) are **not** JWT-protected in the current codebase (no global guard). This matches incremental slice delivery; tightening auth may happen in a later slice.
+All **users** routes except **POST /users** (registration) require a **Bearer** JWT (same as **projects** and **tickets**).
 
 ### Logout
 
-- **POST** `/auth/logout` returns **200** with an empty body.
+- **POST** `/auth/logout` returns **200** with an empty body and requires a valid **Authorization: Bearer** token.
 
-**Logout is stateless:** the server does **not** maintain a token deny-list. Tokens remain valid until they expire (`expiresIn` is **3600** seconds). Clients should discard the token after logout.
+The server keeps a **simple in-memory deny-list** of logged-out access tokens. After logout, the **same** JWT is rejected with **401** on protected routes until it would have expired anyway. This is for local/dev-style hardening only (not multi-instance safe without a shared store).
 
 ### Passwords and user creation
 
@@ -203,10 +203,11 @@ Aligned with [**docs/implementation-plan.md**](docs/implementation-plan.md) vert
 | **2 — Users** | Completed | CRUD, bcrypt, conflict/not-found handling, tests |
 | **3 — Auth** | Completed | JWT login, `/auth/me`, guard, strategy, tests |
 | **4 — Projects** | Completed | CRUD, owner validation, JWT on all project routes, soft delete on DELETE, tests |
+| **5 — Tickets** | Completed | CRUD, lifecycle, optimistic locking (`version` + **409** on conflict), JWT, tests |
 
-**Present but not exposed as REST yet (entities / modules only):** Tickets, Comments, AuditLog (and related README APIs).
+**Present but not exposed as REST yet (entities / modules only):** Comments, AuditLog (and related README APIs).
 
-**Not implemented** (non-exhaustive; see README for full assignment): ticket CRUD and lifecycle, comments, audit log API, dependencies, attachments, CSV import/export, soft-delete list/restore, mentions, workload, auto-escalation, auto-assignment, app-wide JWT on every route, RBAC.
+**Not implemented** (non-exhaustive; see README for full assignment): comments, audit log API, dependencies, attachments, CSV import/export, soft-delete list/restore, mentions, workload, auto-escalation, auto-assignment, **RBAC**, global JWT on **every** route (**POST /users** stays public for registration).
 
 ---
 
@@ -234,10 +235,9 @@ The README homework also invites documenting agent usage; the files above satisf
 
 - **`synchronize: true`** — development only; use migrations for production.
 - **JWT secret** — default is for local dev; set `JWT_SECRET` for shared or deployed environments.
-- **Users without JWT** — assignment long-term may expect broader protection; see implementation plan for incremental approach.
-- **Logout** — stateless; no server-side invalidation.
+- **In-memory token deny-list** — **logout** invalidates tokens only in process memory (resets on restart; not suitable for horizontal scale without Redis or similar).
 - **Soft-deleted projects** — DELETE uses TypeORM `softDelete`; list/restore endpoints from README are not implemented.
-- **E2E** — minimal coverage (`test/app.e2e-spec.ts`); most quality gates are unit tests under `src/`.
+- **E2E** — `test/app.e2e-spec.ts`, `test/auth.e2e-spec.ts`, and `test/tickets.e2e-spec.ts` (PostgreSQL recommended for `npm run test:e2e`).
 
 ---
 

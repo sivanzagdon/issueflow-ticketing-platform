@@ -1,4 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -25,6 +27,18 @@ describe('UsersController', () => {
     }).compile();
 
     controller = module.get(UsersController);
+  });
+
+  it('applies JwtAuthGuard at controller level', () => {
+    const guards = Reflect.getMetadata('__guards__', UsersController);
+
+    expect(guards).toEqual(expect.arrayContaining([JwtAuthGuard]));
+  });
+
+  it('marks create as public for registration', () => {
+    expect(
+      Reflect.getMetadata(IS_PUBLIC_KEY, UsersController.prototype.create),
+    ).toBe(true);
   });
 
   describe('findAll', () => {

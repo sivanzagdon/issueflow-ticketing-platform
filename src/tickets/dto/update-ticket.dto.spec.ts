@@ -13,6 +13,7 @@ describe('UpdateTicketDto', () => {
 
   it('accepts a valid partial update payload', async () => {
     const errors = await validateDto({
+      version: 1,
       title: 'Updated title',
       description: 'Updated description',
       status: TicketStatus.IN_PROGRESS,
@@ -23,32 +24,41 @@ describe('UpdateTicketDto', () => {
     expect(errors).toHaveLength(0);
   });
 
+  it('rejects payload without version', async () => {
+    const errors = await validateDto({
+      title: 'Updated title',
+    });
+
+    expect(errors.some((e) => e.property === 'version')).toBe(true);
+  });
+
   it('rejects empty title when provided', async () => {
-    const errors = await validateDto({ title: '' });
+    const errors = await validateDto({ version: 1, title: '' });
 
     expect(errors.some((e) => e.property === 'title')).toBe(true);
   });
 
   it('rejects invalid status', async () => {
-    const errors = await validateDto({ status: 'INVALID' });
+    const errors = await validateDto({ version: 1, status: 'INVALID' });
 
     expect(errors.some((e) => e.property === 'status')).toBe(true);
   });
 
   it('rejects invalid priority', async () => {
-    const errors = await validateDto({ priority: 'INVALID' });
+    const errors = await validateDto({ version: 1, priority: 'INVALID' });
 
     expect(errors.some((e) => e.property === 'priority')).toBe(true);
   });
 
   it('rejects invalid assigneeId', async () => {
-    const errors = await validateDto({ assigneeId: 0 });
+    const errors = await validateDto({ version: 1, assigneeId: 0 });
 
     expect(errors.some((e) => e.property === 'assigneeId')).toBe(true);
   });
 
   it('accepts dueDate update', async () => {
     const errors = await validateDto({
+      version: 1,
       dueDate: '2026-05-01T00:00:00.000Z',
     });
 
@@ -64,7 +74,7 @@ describe('UpdateTicketDto', () => {
 
     await expect(
       pipe.transform(
-        { title: 'Ok', extraField: 'no' },
+        { version: 1, title: 'Ok', extraField: 'no' },
         { type: 'body', metatype: UpdateTicketDto },
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
