@@ -283,7 +283,7 @@ Deliverables:
 - Safe profile responses without passwordHash
 
 ### Slice 4 — Projects
-Status: Planned
+Status: Completed
 
 Goal:
 Implement project management with clean CRUD APIs, owner validation, JWT-protected routes, safe error handling, and test-first development.
@@ -292,7 +292,7 @@ Endpoints:
 - POST /projects
 - GET /projects
 - GET /projects/:projectId
-- POST /projects/update/:projectId
+- PATCH /projects/:projectId
 - DELETE /projects/:projectId
 
 Scope:
@@ -382,13 +382,139 @@ Deliverables:
 - JWT-protected project routes
 - Passing test suite
 
-### Slice 5: Tickets
-- Ticket CRUD
-- Project relationship
-- Assignee relationship
-- Status, priority, and type validation
-- Forward-only lifecycle transition
-- Block update after DONE
+### Slice 5 — Tickets
+Status: Planned
+
+Goal:
+Implement JWT-protected ticket management with strong validation, relational integrity, lifecycle enforcement, optimistic locking support, and test-first development.
+
+Endpoints:
+- POST /tickets
+- GET /tickets?projectId=...
+- GET /tickets/:ticketId
+- PATCH /tickets/:ticketId
+- DELETE /tickets/:ticketId
+
+Scope:
+- TicketsController
+- TicketsService
+- CreateTicketDto
+- UpdateTicketDto
+- Repository integration
+- Project validation
+- Assignee validation
+- JwtAuthGuard on ticket routes
+- Optimistic locking support
+- Unit tests
+
+Security:
+- all ticket endpoints require JWT authentication
+- use existing JwtAuthGuard from Slice 3
+- do not implement RBAC/admin-only rules yet
+
+Business rules:
+- title is required
+- description is optional
+- projectId is required
+- projectId must reference an existing project
+- assigneeId is optional
+- assigneeId must reference an existing user when provided
+- status must use TicketStatus enum
+- priority must use TicketPriority enum
+- type must use TicketType enum
+- tickets start with TODO status by default
+- status transitions are forward-only:
+  - TODO → IN_PROGRESS
+  - IN_PROGRESS → IN_REVIEW
+  - IN_REVIEW → DONE
+- backward transitions are rejected
+- updates to DONE tickets are blocked
+- missing ticket returns NotFoundException
+- missing project returns NotFoundException
+- invalid assignee returns NotFoundException
+- DELETE uses soft delete
+- ticket responses should expose version field for optimistic locking
+- concurrent update conflicts should be detectable through VersionColumn support
+
+Testing strategy:
+DTO tests:
+- valid create payload
+- missing title fails validation
+- missing projectId fails validation
+- invalid priority fails validation
+- invalid status fails validation
+- invalid type fails validation
+- valid partial update payload
+- empty title fails validation
+
+TicketsService tests:
+- creates ticket when project exists
+- rejects create when project missing
+- rejects create when assignee missing
+- findAll filters by projectId
+- findOne returns ticket by id
+- findOne missing ticket throws NotFoundException
+- update title/description/status/priority/type
+- rejects backward status transition
+- rejects updates after DONE
+- update missing ticket throws NotFoundException
+- remove existing ticket using soft delete
+- remove missing ticket throws NotFoundException
+
+TicketsController tests:
+- delegates create/findAll/findOne/update/remove to service
+- uses ParseIntPipe for route params
+- applies JwtAuthGuard to ticket routes
+
+Architecture:
+Controller:
+- thin controller only
+- protected by JwtAuthGuard
+- delegate business logic to service
+
+Service:
+- repository-driven
+- validate project existence
+- validate assignee existence
+- centralize lifecycle transition validation
+- keep ticket responses simple
+- preserve optimistic locking compatibility
+- keep deletion logic compatible with future restore support
+
+Out of scope:
+- Comments API
+- Audit log
+- Ticket restore endpoints
+- Ticket dependencies
+- Attachments
+- CSV import/export
+- Mentions
+- Auto assignment
+- Escalation jobs
+- Background schedulers
+- RBAC/admin-only permissions
+
+Validation checklist:
+- npm run test
+- npm run build
+- npm run start:dev
+- manual smoke:
+  - create ticket
+  - filter tickets by projectId
+  - valid status progression
+  - invalid backward transition rejected
+  - DONE ticket update rejected
+  - JWT protection verified
+
+Deliverables:
+- TicketsController
+- TicketsService
+- DTOs
+- Tests
+- JWT-protected ticket routes
+- Forward-only lifecycle validation
+- Soft delete support
+- Passing test suite
 
 ### Slice 6: Comments
 - Add comment
