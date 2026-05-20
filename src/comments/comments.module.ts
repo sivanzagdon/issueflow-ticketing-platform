@@ -1,9 +1,19 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { TicketsModule } from '../tickets/tickets.module';
+import { UsersModule } from '../users/users.module';
+import { CommentsController } from './comments.controller';
+import { CommentsService } from './comments.service';
 import { Comment } from './entities/comment.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Comment])],
-  exports: [TypeOrmModule],
+  imports: [
+    TypeOrmModule.forFeature([Comment]),
+    TicketsModule,
+    UsersModule,
+  ],
+  controllers: [CommentsController],
+  providers: [CommentsService],
+  exports: [TypeOrmModule, CommentsService],
 })
 export class CommentsModule {}

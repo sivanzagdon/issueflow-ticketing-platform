@@ -383,7 +383,7 @@ Deliverables:
 - Passing test suite
 
 ### Slice 5 — Tickets
-Status: Planned
+Status: Completed
 
 Goal:
 Implement JWT-protected ticket management with strong validation, relational integrity, lifecycle enforcement, optimistic locking support, and test-first development.
@@ -516,11 +516,115 @@ Deliverables:
 - Soft delete support
 - Passing test suite
 
-### Slice 6: Comments
-- Add comment
-- List comments by ticket
-- Update comment
-- Delete comment
+### Slice 6 — Comments
+Status: Planned
+
+Goal:
+Implement JWT-protected comment management for tickets with clean CRUD APIs, ticket validation, author validation, safe responses, and test-first development.
+
+Endpoints:
+- POST /tickets/:ticketId/comments
+- GET /tickets/:ticketId/comments
+- PATCH /comments/:commentId
+- DELETE /comments/:commentId
+
+Scope:
+- CommentsController
+- CommentsService
+- CreateCommentDto
+- UpdateCommentDto
+- Repository integration
+- Ticket validation
+- Author validation
+- JwtAuthGuard on comment routes
+- Unit tests
+
+Security:
+- all comment endpoints require JWT authentication
+- use existing JwtAuthGuard from Slice 3
+- do not implement RBAC/admin-only rules yet
+- do not restrict editing/deleting to author only in this slice unless required by README
+
+Business rules:
+- content is required
+- content cannot be empty
+- ticketId must reference an existing ticket
+- authorId must reference an existing user
+- missing comment returns NotFoundException
+- missing ticket returns NotFoundException
+- missing author returns NotFoundException
+- comments are listed by ticketId
+- update supports content only
+- delete removes the comment
+- comment responses should include id, ticketId, authorId, content, createdAt, updatedAt
+
+Testing strategy:
+DTO tests:
+- valid create payload
+- missing content fails validation
+- empty content fails validation
+- missing authorId fails validation
+- invalid authorId fails validation
+- valid update payload
+- empty update content fails validation
+
+CommentsService tests:
+- creates comment when ticket and author exist
+- rejects create when ticket does not exist
+- rejects create when author does not exist
+- findByTicket returns comments for ticket
+- findByTicket rejects missing ticket
+- update content
+- update missing comment throws NotFoundException
+- remove existing comment
+- remove missing comment throws NotFoundException
+
+CommentsController tests:
+- delegates create/findByTicket/update/remove to service
+- uses ParseIntPipe for ticketId and commentId route params
+- applies JwtAuthGuard to comment routes
+
+Architecture:
+Controller:
+- thin controller only
+- protected by JwtAuthGuard
+- delegate business logic to service
+
+Service:
+- repository-driven
+- validate ticket existence
+- validate author existence
+- keep comment response simple
+- do not implement audit logging yet
+
+Out of scope:
+- Audit log
+- Mentions
+- Notifications
+- Attachments
+- RBAC/admin-only permissions
+- Author-only edit/delete permissions unless explicitly required
+- Comment versioning
+- Soft delete for comments unless README requires it
+
+Validation checklist:
+- npm run test
+- npm run build
+- npm run start:dev
+- manual smoke:
+  - create comment for ticket
+  - list comments by ticket
+  - update comment content
+  - delete comment
+  - JWT protection verified
+
+Deliverables:
+- CommentsController
+- CommentsService
+- DTOs
+- Tests
+- JWT-protected comment routes
+- Passing test suite
 
 ### Slice 7: Quality
 - Tests
