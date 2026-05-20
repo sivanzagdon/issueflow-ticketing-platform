@@ -1,4 +1,5 @@
-import { CanActivate, ExecutionContext } from '@nestjs/common';
+import { CanActivate, ExecutionContext, RequestMethod } from '@nestjs/common';
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -87,6 +88,20 @@ describe('ProjectsController', () => {
   });
 
   describe('update', () => {
+    it('uses PATCH /projects/:projectId', () => {
+      const method = Reflect.getMetadata(
+        METHOD_METADATA,
+        ProjectsController.prototype.update,
+      );
+      const path = Reflect.getMetadata(
+        PATH_METADATA,
+        ProjectsController.prototype.update,
+      );
+
+      expect(method).toBe(RequestMethod.PATCH);
+      expect(path).toBe(':projectId');
+    });
+
     it('delegates to ProjectsService.update', async () => {
       const dto: UpdateProjectDto = {
         name: 'Updated Name',

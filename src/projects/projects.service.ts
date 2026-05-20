@@ -58,7 +58,7 @@ export class ProjectsService {
 
   async remove(id: number): Promise<void> {
     await this.getProjectOrThrow(id);
-    await this.projectRepository.delete({ id });
+    await this.projectRepository.softDelete({ id });
   }
 
   private async getProjectOrThrow(id: number): Promise<Project> {

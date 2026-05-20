@@ -30,7 +30,7 @@ describe('ProjectsService', () => {
       save: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
-      delete: jest.fn(),
+      softDelete: jest.fn(),
     } as unknown as jest.Mocked<Repository<Project>>;
 
     usersService = {
@@ -166,13 +166,17 @@ describe('ProjectsService', () => {
   });
 
   describe('remove', () => {
-    it('removes existing project', async () => {
+    it('soft-deletes existing project', async () => {
       projectRepository.findOne.mockResolvedValue(mockProjectEntity());
-      projectRepository.delete.mockResolvedValue({ affected: 1, raw: [] });
+      projectRepository.softDelete.mockResolvedValue({
+        affected: 1,
+        raw: [],
+        generatedMaps: [],
+      });
 
       await service.remove(1);
 
-      expect(projectRepository.delete).toHaveBeenCalledWith({ id: 1 });
+      expect(projectRepository.softDelete).toHaveBeenCalledWith({ id: 1 });
     });
 
     it('throws NotFoundException when removing a missing project', async () => {

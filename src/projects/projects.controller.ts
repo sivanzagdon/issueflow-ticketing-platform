@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -33,7 +34,7 @@ export class ProjectsController {
     return this.projectsService.findOne(projectId);
   }
 
-  @Post('update/:projectId')
+  @Patch(':projectId')
   update(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Body() updateProjectDto: UpdateProjectDto,
