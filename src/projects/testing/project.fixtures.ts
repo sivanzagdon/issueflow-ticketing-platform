@@ -1,5 +1,5 @@
 import { Project } from '../entities/project.entity';
-import { ProjectResponse } from '../projects.service';
+import { ProjectResponse } from '../projects.mapper';
 
 export const mockProjectEntity = (overrides: Partial<Project> = {}): Project => ({
   id: 1,
