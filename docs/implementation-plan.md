@@ -517,7 +517,7 @@ Deliverables:
 - Passing test suite
 
 ### Slice 6 — Comments
-Status: Planned
+Status: Completed
 
 Goal:
 Implement JWT-protected comment management for tickets with clean CRUD APIs, ticket validation, author validation, safe responses, and test-first development.
@@ -525,8 +525,8 @@ Implement JWT-protected comment management for tickets with clean CRUD APIs, tic
 Endpoints:
 - POST /tickets/:ticketId/comments
 - GET /tickets/:ticketId/comments
-- PATCH /comments/:commentId
-- DELETE /comments/:commentId
+- PATCH /tickets/:ticketId/comments/:commentId
+- DELETE /tickets/:ticketId/comments/:commentId
 
 Scope:
 - CommentsController
@@ -626,12 +626,116 @@ Deliverables:
 - JWT-protected comment routes
 - Passing test suite
 
-### Slice 7: Quality
-- Tests
+### Slice 7 — Quality, Documentation, and Final Review
+Status: Planned
+
+Goal:
+Finalize the project for submission by improving reliability, documentation, consistency, API contract alignment, and reviewer experience without adding unnecessary new features.
+
+Scope:
+- Final test verification
+- E2E verification
+- Build verification
+- Lint / formatting review
+- Documentation review
+- API contract audit
 - Error handling review
-- Build/lint verification
-- run.md
-- prompts.md
+- Security review
+- Repository cleanup
+- Submission readiness checklist
+
+Quality tasks:
+- run all unit tests
+- run all e2e tests
+- run production build
+- run lint if stable
+- verify Nest app starts successfully
+- verify Docker Compose database startup
+- verify no broken imports
+- verify no unused debug code
+- verify no accidental console logs
+- verify no commented-out dead code
+- verify no unrelated generated files are committed
+
+API contract audit:
+- compare implemented endpoints against README
+- verify HTTP methods and paths
+- verify request DTOs
+- verify response shapes
+- verify status codes where documented
+- verify protected routes require JWT
+- verify public routes are intentionally public
+- verify error responses use appropriate Nest exceptions
+
+Security review:
+- passwordHash is never exposed
+- passwords are hashed with bcrypt
+- JWT-protected routes are protected
+- logout invalidation behavior is documented
+- no secrets are committed
+- .env is not committed
+- no RBAC added unless explicitly required
+- public registration behavior is documented
+
+Documentation tasks:
+- update docs/implementation-plan.md
+- mark completed slices accurately
+- update run.md with final setup and run instructions
+- update prompts.md with final AI prompts/workflow if needed
+- verify AI instruction files / skills are included
+- document intentionally deferred features
+- document known technical debt
+- document testing commands and results
+
+Repository cleanup:
+- remove IDE-specific files if present
+- remove generated build artifacts if present
+- remove coverage artifacts if present
+- ensure .gitignore covers:
+  - node_modules
+  - dist
+  - coverage
+  - .env
+  - IDE files
+- verify git status is clean before final submission
+
+Final validation checklist:
+- npm run test
+- npm run test:e2e
+- npm run build
+- npm run start:dev
+- git status
+- manual smoke test for:
+  - auth login
+  - protected route without token returns 401
+  - create project
+  - create ticket
+  - invalid ticket transition returns 400
+  - stale ticket version returns 409
+  - create/list/update/delete comment
+
+Out of scope:
+- new product features
+- new business modules
+- RBAC redesign
+- Redis/session store
+- refresh tokens
+- notifications
+- websocket support
+- microservices
+- deployment infrastructure
+- large architectural refactors
+
+Deliverables:
+- Updated documentation
+- Clean repository
+- Passing unit tests
+- Passing e2e tests
+- Successful build
+- Verified startup
+- Final API contract summary
+- Final technical debt summary
+- Submission-ready GitHub repository
 
 ## Extended Features Priority
 

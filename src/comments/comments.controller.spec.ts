@@ -76,7 +76,7 @@ describe('CommentsController', () => {
     expect(path).toBe('tickets/:ticketId/comments');
   });
 
-  it('PATCH update uses route comments/:commentId', () => {
+  it('PATCH update uses route tickets/:ticketId/comments/:commentId', () => {
     const method = Reflect.getMetadata(
       METHOD_METADATA,
       CommentsController.prototype.update,
@@ -86,10 +86,10 @@ describe('CommentsController', () => {
       CommentsController.prototype.update,
     );
     expect(method).toBe(RequestMethod.PATCH);
-    expect(path).toBe('comments/:commentId');
+    expect(path).toBe('tickets/:ticketId/comments/:commentId');
   });
 
-  it('DELETE remove uses route comments/:commentId', () => {
+  it('DELETE remove uses route tickets/:ticketId/comments/:commentId', () => {
     const method = Reflect.getMetadata(
       METHOD_METADATA,
       CommentsController.prototype.remove,
@@ -99,7 +99,7 @@ describe('CommentsController', () => {
       CommentsController.prototype.remove,
     );
     expect(method).toBe(RequestMethod.DELETE);
-    expect(path).toBe('comments/:commentId');
+    expect(path).toBe('tickets/:ticketId/comments/:commentId');
   });
 
   describe('create', () => {
@@ -133,7 +133,7 @@ describe('CommentsController', () => {
       const updated = mockCommentResponse({ content: 'Revised' });
       commentsService.update.mockResolvedValue(updated);
 
-      const result = await controller.update(11, dto);
+      const result = await controller.update(4, 11, dto);
 
       expect(commentsService.update).toHaveBeenCalledWith(11, dto);
       expect(result).toEqual(updated);
@@ -144,7 +144,7 @@ describe('CommentsController', () => {
     it('delegates to CommentsService.remove with commentId', async () => {
       commentsService.remove.mockResolvedValue(undefined);
 
-      await controller.remove(15);
+      await controller.remove(4, 15);
 
       expect(commentsService.remove).toHaveBeenCalledWith(15);
     });

@@ -32,16 +32,20 @@ export class CommentsController {
     return this.commentsService.findByTicket(ticketId);
   }
 
-  @Patch('comments/:commentId')
+  @Patch('tickets/:ticketId/comments/:commentId')
   update(
+    @Param('ticketId', ParseIntPipe) _ticketId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @Body() updateCommentDto: UpdateCommentDto,
   ) {
     return this.commentsService.update(commentId, updateCommentDto);
   }
 
-  @Delete('comments/:commentId')
-  remove(@Param('commentId', ParseIntPipe) commentId: number) {
+  @Delete('tickets/:ticketId/comments/:commentId')
+  remove(
+    @Param('ticketId', ParseIntPipe) _ticketId: number,
+    @Param('commentId', ParseIntPipe) commentId: number,
+  ) {
     return this.commentsService.remove(commentId);
   }
 }
