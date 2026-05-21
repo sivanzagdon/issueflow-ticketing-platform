@@ -627,7 +627,7 @@ Deliverables:
 - Passing test suite
 
 ### Slice 7 — Quality, Documentation, and Final Review
-Status: Planned
+Status: Completed
 
 Goal:
 Finalize the project for submission by improving reliability, documentation, consistency, API contract alignment, and reviewer experience without adding unnecessary new features.
@@ -737,14 +737,148 @@ Deliverables:
 - Final technical debt summary
 - Submission-ready GitHub repository
 
-## Extended Features Priority
+### Slice 8 — Audit Log
+Status: Planned
 
-If time allows:
-1. Audit log
-2. Soft delete
-3. Mentions
-4. Auto assignment
-5. Ticket dependencies
-6. CSV import/export
-7. Attachments
-8. Auto escalation
+Goal:
+Implement a centralized append-only audit logging system for all state-changing actions across the platform.
+
+Endpoints:
+- GET /audit-logs
+- GET /audit-logs?entityType=...
+- GET /audit-logs?entityId=...
+- GET /audit-logs?action=...
+- GET /audit-logs?performedBy=...
+
+Important:
+- Do not expose POST /audit-logs.
+- Audit logs are created internally by application services only.
+- Audit logs are not user-created resources.
+
+Scope:
+- AuditLogService
+- AuditLogController
+- AuditLog repository integration
+- Centralized audit logging
+- Audit log filtering
+- Ticket stateHistory projection
+- Tests
+
+Architecture:
+- audit_logs is the single source of truth for system history.
+- audit logs are append-only.
+- audit logs are never updated or deleted.
+- every state-changing service method should create an audit log entry.
+- ticket stateHistory is a derived response projection from audit_logs.
+- stateHistory is NOT stored on the Ticket entity itself.
+
+AuditLog entity:
+- id
+- action
+- entityType
+- entityId
+- performedBy nullable
+- actorType (USER | SYSTEM)
+- details (jsonb)
+- createdAt
+
+Business rules:
+- all state-changing actions must create audit log entries.
+- both user-triggered and system-triggered actions must be logged.
+- SYSTEM actions use actorType = SYSTEM and performedBy = null.
+- USER actions use actorType = USER and performedBy = current user id.
+- audit log entries must preserve historical integrity.
+- audit logs are immutable after creation.
+
+Examples of logged actions:
+- CREATE_USER
+- UPDATE_USER
+- DELETE_USER
+- CREATE_PROJECT
+- UPDATE_PROJECT
+- DELETE_PROJECT
+- RESTORE_PROJECT
+- CREATE_TICKET
+- UPDATE_TICKET
+- UPDATE_TICKET_STATUS
+- DELETE_TICKET
+- RESTORE_TICKET
+- CREATE_COMMENT
+- UPDATE_COMMENT
+- DELETE_COMMENT
+- ADD_DEPENDENCY
+- REMOVE_DEPENDENCY
+- AUTO_ASSIGN
+- AUTO_ESCALATE
+- IMPORT_TICKETS
+
+Details examples:
+- CREATE_TICKET:
+  details includes created fields such as title, status, priority, type, projectId, assigneeId.
+- UPDATE_TICKET_STATUS:
+  details includes from and to.
+- UPDATE_TICKET:
+  details includes only changed fields with before and after values.
+- DELETE_TICKET:
+  details includes deletedAt.
+- AUTO_ASSIGN:
+  details includes assignedTo and reason.
+- AUTO_ESCALATE:
+  details includes previousPriority, newPriority, dueDate, isOverdue.
+- IMPORT_TICKETS:
+  details includes created, failed, and errors count.
+
+Filtering:
+- GET /audit-logs returns all audit logs ordered newest first.
+- entityType filter returns logs for a specific entity type.
+- entityId filter returns logs for a specific entity id.
+- action filter returns logs for a specific action.
+- performedBy filter returns logs created by a specific user.
+- filters may be combined.
+
+Ticket stateHistory:
+- GET /tickets/:ticketId should include stateHistory.
+- stateHistory is built from audit_logs where entityType = TICKET and entityId = ticketId.
+- stateHistory is ordered ascending by createdAt.
+- stateHistory should not expose internal database-only fields that are not useful to API consumers.
+
+Testing strategy:
+AuditLogService tests:
+- creates audit entry.
+- preserves details payload.
+- creates append-only records.
+- supports filtering by entityType.
+- supports filtering by entityId.
+- supports filtering by action.
+- supports filtering by performedBy.
+- supports combined filters.
+
+Integration tests:
+- creating user creates audit log.
+- updating user creates audit log.
+- deleting user creates audit log.
+- creating project creates audit log.
+- updating project creates audit log.
+- deleting project creates audit log.
+- creating ticket creates audit log.
+- updating ticket creates audit log.
+- updating ticket status creates audit log with from/to.
+- deleting ticket creates audit log.
+- creating comment creates audit log.
+- updating comment creates audit log.
+- deleting comment creates audit log.
+
+Ticket response tests:
+- GET /tickets/:id returns derived stateHistory.
+- stateHistory is ordered ascending by createdAt.
+- stateHistory is derived from audit_logs and not stored directly on Ticket.
+
+Out of scope:
+- public POST /audit-logs endpoint
+- updating audit logs
+- deleting audit logs
+- distributed event streaming
+- Kafka/event bus
+- websocket notifications
+- external SIEM integrations
+

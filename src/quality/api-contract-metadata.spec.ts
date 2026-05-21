@@ -1,4 +1,5 @@
 import { RequestMethod } from '@nestjs/common';
+import { AuditLogController } from '../audit-log/audit-log.controller';
 import { AuthController } from '../auth/auth.controller';
 import { CommentsController } from '../comments/comments.controller';
 import { ProjectsController } from '../projects/projects.controller';
@@ -69,5 +70,14 @@ describe('API contract metadata', () => {
     ] as const)('%s is %s /%s', (handler, method, path) => {
       expectHandlerRoute(CommentsController, handler, method, path);
     });
+  });
+
+  describe('AuditLogController', () => {
+    it.each([['findAll', RequestMethod.GET, 'audit-logs']] as const)(
+      '%s is %s /%s',
+      (handler, method, path) => {
+        expectHandlerRoute(AuditLogController, handler, method, path);
+      },
+    );
   });
 });

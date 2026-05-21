@@ -1,5 +1,6 @@
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
+import { AuditLogController } from '../audit-log/audit-log.controller';
 import { AuthController } from '../auth/auth.controller';
 import { CommentsController } from '../comments/comments.controller';
 import { ProjectsController } from '../projects/projects.controller';
@@ -99,5 +100,16 @@ describe('Security / JWT guard coverage', () => {
         expect(isPublic(CommentsController, handler)).not.toBe(true);
       },
     );
+  });
+
+  describe('AuditLogController', () => {
+    it('applies JwtAuthGuard to audit log routes', () => {
+      const guards = Reflect.getMetadata('__guards__', AuditLogController);
+      expect(guards).toEqual(expect.arrayContaining([JwtAuthGuard]));
+    });
+
+    it('findAll is not public', () => {
+      expect(isPublic(AuditLogController, 'findAll')).not.toBe(true);
+    });
   });
 });

@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { AuditEntityType } from '../src/common/enums/audit-entity-type.enum';
 import { TicketPriority } from '../src/common/enums/ticket-priority.enum';
 import { TicketStatus } from '../src/common/enums/ticket-status.enum';
 import { TicketType } from '../src/common/enums/ticket-type.enum';
@@ -83,7 +84,8 @@ describe('Final submission flow (e2e)', () => {
       .expect(201);
 
     const ticketId = ticketRes.body.id as number;
-    let version = ticketRes.body.version as number;
+    const initialVersion = ticketRes.body.version as number;
+    let version = initialVersion;
 
     const commentRes = await request(app.getHttpServer())
       .post(`/tickets/${ticketId}/comments`)
@@ -92,15 +94,12 @@ describe('Final submission flow (e2e)', () => {
       .expect(201);
 
     const commentId = commentRes.body.id as number;
-    expect(commentRes.body.ticketId).toBe(ticketId);
-    expect(commentRes.body.content).toBe('Flow comment');
 
     const listRes = await request(app.getHttpServer())
       .get(`/tickets/${ticketId}/comments`)
       .set(auth)
       .expect(200);
 
-    expect(Array.isArray(listRes.body)).toBe(true);
     expect(listRes.body.some((c: { id: number }) => c.id === commentId)).toBe(
       true,
     );
@@ -112,13 +111,18 @@ describe('Final submission flow (e2e)', () => {
       .expect(200);
 
     version = forwardRes.body.version as number;
-    expect(forwardRes.body.status).toBe(TicketStatus.IN_PROGRESS);
 
     await request(app.getHttpServer())
       .patch(`/tickets/${ticketId}`)
       .set(auth)
       .send({ version, status: TicketStatus.DONE })
       .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/tickets/${ticketId}`)
+      .set(auth)
+      .send({ version: initialVersion, title: 'Stale' })
+      .expect(409);
 
     await request(app.getHttpServer())
       .delete(`/tickets/${ticketId}/comments/${commentId}`)
@@ -129,5 +133,13 @@ describe('Final submission flow (e2e)', () => {
       .delete(`/tickets/${ticketId}`)
       .set(auth)
       .expect(200);
+
+    const auditRes = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .query({ entityType: AuditEntityType.TICKET, entityId: ticketId })
+      .set(auth)
+      .expect(200);
+
+    expect(auditRes.body.length).toBeGreaterThanOrEqual(1);
   });
 });

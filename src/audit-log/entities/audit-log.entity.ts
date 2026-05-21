@@ -27,9 +27,12 @@ export class AuditLog {
   @Column({ name: 'performed_by', nullable: true })
   performedBy: number | null;
 
-  @Column({ type: 'enum', enum: AuditActor })
-  actor: AuditActor;
+  @Column({ name: 'actor_type', type: 'enum', enum: AuditActor })
+  actorType: AuditActor;
 
-  @CreateDateColumn({ type: 'timestamptz' })
-  timestamp: Date;
+  @Column({ type: 'jsonb', nullable: true })
+  details: Record<string, unknown> | null;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt: Date;
 }
