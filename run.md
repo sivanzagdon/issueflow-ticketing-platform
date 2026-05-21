@@ -8,7 +8,7 @@ This document describes how to install, configure, and run the IssueFlow backend
 
 IssueFlow is a **NestJS** REST API for a lightweight project and issue-tracking platform (AT&T homework / TDP scope). The assignment API contract is defined in [**README.md**](README.md).
 
-**Implemented today:** foundation (PostgreSQL + TypeORM), **Users** (JWT-protected except **POST /users** registration), **JWT Authentication** (login, protected `/auth/me`, **logout** with in-memory token invalidation), **Projects**, and **Tickets** with unit tests and minimal e2e coverage. **Comments** and most extended README features are **not** implemented yet.
+**Implemented today:** foundation (PostgreSQL + TypeORM), **Users** (JWT-protected except **POST /users** registration), **JWT Authentication** (login, protected `/auth/me`, **logout** with in-memory token invalidation), **Projects**, **Tickets**, **Comments**, and **Audit Log** (append-only internal logging, GET `/audit-logs`, ticket `stateHistory` projection) with unit and e2e tests. Most extended README features (dependencies, attachments, CSV, RBAC, etc.) are **not** implemented yet.
 
 ---
 
@@ -134,7 +134,9 @@ npm run format
 
 ## 9. Run Tests
 
-**Unit tests** (Jest, specs under `src/**/*.spec.ts`):
+### Unit tests
+
+Jest specs under `src/**/*.spec.ts`. **Does not require PostgreSQL.**
 
 ```bash
 npm run test
@@ -148,13 +150,28 @@ npm run test:cov
 npm run test:debug
 ```
 
-**End-to-end** (separate Jest config):
+### End-to-end tests
+
+Separate Jest config ([`test/jest-e2e.json`](test/jest-e2e.json)). Boots the full [`AppModule`](src/app.module.ts) with TypeORM against PostgreSQL.
+
+**Before running e2e:**
+
+1. Start PostgreSQL: `docker compose up -d` (see §5).
+2. Then run:
 
 ```bash
 npm run test:e2e
 ```
 
-`test:e2e` boots the full [`AppModule`](src/app.module.ts) (including TypeORM). **PostgreSQL should be running** for e2e to succeed; unit tests `npm run test` are the primary CI-style check used during development.
+E2E is configured to run **serially** (`maxWorkers: 1` in `test/jest-e2e.json`) so only one Nest app synchronizes the schema at a time. Parallel e2e workers can race on `synchronize: true` and fail against a shared database.
+
+E2E suites include `test/audit-log.e2e-spec.ts` (JWT on GET `/audit-logs`, no POST `/audit-logs`, filters, `stateHistory`), plus auth, tickets, app, and final-flow specs.
+
+### Build (recommended before submit)
+
+```bash
+npm run build
+```
 
 ---
 
@@ -204,10 +221,11 @@ Aligned with [**docs/implementation-plan.md**](docs/implementation-plan.md) vert
 | **3 — Auth** | Completed | JWT login, `/auth/me`, guard, strategy, tests |
 | **4 — Projects** | Completed | CRUD, owner validation, JWT on all project routes, soft delete on DELETE, tests |
 | **5 — Tickets** | Completed | CRUD, lifecycle, optimistic locking (`version` + **409** on conflict), JWT, tests |
+| **6 — Comments** | Completed | Ticket-scoped CRUD, JWT, author/ticket validation, tests |
+| **7 — Quality** | Completed | Contract metadata, security guards, docs sanity, extended e2e |
+| **8 — Audit Log** | Completed | Append-only logging, GET `/audit-logs`, filters, `stateHistory` on GET `/tickets/:id`, tests |
 
-**Present but not exposed as REST yet (entities / modules only):** Comments, AuditLog (and related README APIs).
-
-**Not implemented** (non-exhaustive; see README for full assignment): comments, audit log API, dependencies, attachments, CSV import/export, soft-delete list/restore, mentions, workload, auto-escalation, auto-assignment, **RBAC**, global JWT on **every** route (**POST /users** stays public for registration).
+**Not implemented** (non-exhaustive; see README for full assignment): dependencies, attachments, CSV import/export, soft-delete list/restore, mentions, workload, auto-escalation, auto-assignment, **RBAC**, SYSTEM audit producers (auto-assign, escalation, import).
 
 ---
 
@@ -237,7 +255,7 @@ The README homework also invites documenting agent usage; the files above satisf
 - **JWT secret** — default is for local dev; set `JWT_SECRET` for shared or deployed environments.
 - **In-memory token deny-list** — **logout** invalidates tokens only in process memory (resets on restart; not suitable for horizontal scale without Redis or similar).
 - **Soft-deleted projects** — DELETE uses TypeORM `softDelete`; list/restore endpoints from README are not implemented.
-- **E2E** — `test/app.e2e-spec.ts`, `test/auth.e2e-spec.ts`, and `test/tickets.e2e-spec.ts` (PostgreSQL recommended for `npm run test:e2e`).
+- **E2E** — requires PostgreSQL (`docker compose up -d`); runs serially via `maxWorkers: 1` in `test/jest-e2e.json`. Suites: `test/app.e2e-spec.ts`, `test/auth.e2e-spec.ts`, `test/tickets.e2e-spec.ts`, `test/audit-log.e2e-spec.ts`, `test/final-flow.e2e-spec.ts`.
 
 ---
 
@@ -249,8 +267,8 @@ The README homework also invites documenting agent usage; the files above satisf
 | `npm run start:dev` | Dev server (port 3000) |
 | `npm run build` | Compile to `dist/` |
 | `npm run start:prod` | Run compiled app |
-| `npm run test` | Unit tests |
-| `npm run test:e2e` | E2e tests (DB recommended) |
+| `npm run test` | Unit tests (no DB required) |
+| `npm run test:e2e` | E2e tests (PostgreSQL required; serial workers) |
 | `npm run lint` | ESLint |
 | `npm run format` | Prettier |
 

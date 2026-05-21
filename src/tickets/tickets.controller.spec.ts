@@ -7,6 +7,7 @@ import { TicketStatus } from '../common/enums/ticket-status.enum';
 import { TicketType } from '../common/enums/ticket-type.enum';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { mockUserResponse } from '../users/testing/user.fixtures';
 import { mockTicketResponse } from './testing/ticket.fixtures';
 import { TicketsController } from './tickets.controller';
 import { TicketsService } from './tickets.service';
@@ -14,7 +15,7 @@ import { TicketsService } from './tickets.service';
 const mockJwtAuthGuard: CanActivate = {
   canActivate: (context: ExecutionContext) => {
     const request = context.switchToHttp().getRequest();
-    request.user = mockTicketResponse();
+    request.user = mockUserResponse();
     return true;
   },
 };
@@ -22,6 +23,7 @@ const mockJwtAuthGuard: CanActivate = {
 describe('TicketsController', () => {
   let controller: TicketsController;
   let ticketsService: jest.Mocked<TicketsService>;
+  const authReq = { user: mockUserResponse() };
 
   beforeEach(async () => {
     ticketsService = {
@@ -61,9 +63,9 @@ describe('TicketsController', () => {
       const created = mockTicketResponse();
       ticketsService.create.mockResolvedValue(created);
 
-      const result = await controller.create(dto);
+      const result = await controller.create(dto, authReq);
 
-      expect(ticketsService.create).toHaveBeenCalledWith(dto);
+      expect(ticketsService.create).toHaveBeenCalledWith(dto, authReq.user.id);
       expect(result).toEqual(created);
     });
   });
@@ -82,7 +84,7 @@ describe('TicketsController', () => {
 
   describe('findOne', () => {
     it('delegates to TicketsService.findOne with parsed ticketId', async () => {
-      const ticket = mockTicketResponse();
+      const ticket = { ...mockTicketResponse(), stateHistory: [] };
       ticketsService.findOne.mockResolvedValue(ticket);
 
       const result = await controller.findOne(1);
@@ -112,9 +114,9 @@ describe('TicketsController', () => {
       const updated = mockTicketResponse({ status: TicketStatus.IN_PROGRESS });
       ticketsService.update.mockResolvedValue(updated);
 
-      const result = await controller.update(1, dto);
+      const result = await controller.update(1, dto, authReq);
 
-      expect(ticketsService.update).toHaveBeenCalledWith(1, dto);
+      expect(ticketsService.update).toHaveBeenCalledWith(1, dto, authReq.user.id);
       expect(result).toEqual(updated);
     });
   });
@@ -123,9 +125,9 @@ describe('TicketsController', () => {
     it('delegates to TicketsService.remove with parsed ticketId', async () => {
       ticketsService.remove.mockResolvedValue(undefined);
 
-      await controller.remove(1);
+      await controller.remove(1, authReq);
 
-      expect(ticketsService.remove).toHaveBeenCalledWith(1);
+      expect(ticketsService.remove).toHaveBeenCalledWith(1, authReq.user.id);
     });
   });
 });

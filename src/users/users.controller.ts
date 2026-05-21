@@ -6,8 +6,10 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { AuthenticatedUser } from '../auth/auth.types';
 import { Public } from '../auth/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -39,12 +41,16 @@ export class UsersController {
   update(
     @Param('userId', ParseIntPipe) userId: number,
     @Body() updateUserDto: UpdateUserDto,
+    @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.usersService.update(userId, updateUserDto);
+    return this.usersService.update(userId, updateUserDto, req.user.id);
   }
 
   @Delete(':userId')
-  remove(@Param('userId', ParseIntPipe) userId: number) {
-    return this.usersService.remove(userId);
+  remove(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.usersService.remove(userId, req.user.id);
   }
 }

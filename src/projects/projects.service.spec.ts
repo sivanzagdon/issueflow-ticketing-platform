@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { UsersService } from '../users/users.service';
 import { mockUserResponse } from '../users/testing/user.fixtures';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -42,6 +43,10 @@ describe('ProjectsService', () => {
         ProjectsService,
         { provide: getRepositoryToken(Project), useValue: projectRepository },
         { provide: UsersService, useValue: usersService },
+        {
+          provide: AuditLogService,
+          useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) },
+        },
       ],
     }).compile();
 

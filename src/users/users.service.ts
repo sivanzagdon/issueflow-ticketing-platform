@@ -7,6 +7,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { QueryFailedError, Repository } from 'typeorm';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditAction } from '../common/enums/audit-action.enum';
+import { AuditActor } from '../common/enums/audit-actor.enum';
+import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
@@ -19,6 +23,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserResponse> {
@@ -36,6 +41,18 @@ export class UsersService {
 
     try {
       const saved = await this.userRepository.save(user);
+      await this.auditLogService.record({
+        action: AuditAction.CREATE,
+        entityType: AuditEntityType.USER,
+        entityId: saved.id,
+        performedBy: saved.id,
+        actorType: AuditActor.USER,
+        details: {
+          username: saved.username,
+          email: saved.email,
+          role: saved.role,
+        },
+      });
       return toUserResponse(saved);
     } catch (error) {
       this.handlePersistenceError(error);
@@ -52,8 +69,13 @@ export class UsersService {
     return toUserResponse(user);
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<UserResponse> {
+  async update(
+    id: number,
+    updateUserDto: UpdateUserDto,
+    performedBy?: number,
+  ): Promise<UserResponse> {
     const user = await this.getUserOrThrow(id);
+    const before = { fullName: user.fullName, role: user.role };
 
     if (updateUserDto.fullName !== undefined) {
       user.fullName = updateUserDto.fullName;
@@ -64,15 +86,44 @@ export class UsersService {
 
     try {
       const saved = await this.userRepository.save(user);
+      const details: Record<string, unknown> = {};
+      if (
+        updateUserDto.fullName !== undefined &&
+        updateUserDto.fullName !== before.fullName
+      ) {
+        details.fullName = {
+          before: before.fullName,
+          after: saved.fullName,
+        };
+      }
+      if (updateUserDto.role !== undefined && updateUserDto.role !== before.role) {
+        details.role = { before: before.role, after: saved.role };
+      }
+
+      await this.auditLogService.record({
+        action: AuditAction.UPDATE,
+        entityType: AuditEntityType.USER,
+        entityId: saved.id,
+        performedBy: performedBy ?? saved.id,
+        actorType: AuditActor.USER,
+        details: Object.keys(details).length > 0 ? details : null,
+      });
       return toUserResponse(saved);
     } catch (error) {
       this.handlePersistenceError(error);
     }
   }
 
-  async remove(id: number): Promise<void> {
-    await this.getUserOrThrow(id);
+  async remove(id: number, performedBy?: number): Promise<void> {
+    const user = await this.getUserOrThrow(id);
     await this.userRepository.delete({ id });
+    await this.auditLogService.record({
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.USER,
+      entityId: id,
+      performedBy: performedBy ?? id,
+      actorType: AuditActor.USER,
+    });
   }
 
   private async getUserOrThrow(id: number): Promise<User> {

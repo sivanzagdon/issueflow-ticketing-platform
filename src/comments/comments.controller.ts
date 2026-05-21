@@ -7,8 +7,10 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -37,15 +39,21 @@ export class CommentsController {
     @Param('ticketId', ParseIntPipe) _ticketId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @Body() updateCommentDto: UpdateCommentDto,
+    @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.commentsService.update(commentId, updateCommentDto);
+    return this.commentsService.update(
+      commentId,
+      updateCommentDto,
+      req.user.id,
+    );
   }
 
   @Delete('tickets/:ticketId/comments/:commentId')
   remove(
     @Param('ticketId', ParseIntPipe) _ticketId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
+    @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.commentsService.remove(commentId);
+    return this.commentsService.remove(commentId, req.user.id);
   }
 }

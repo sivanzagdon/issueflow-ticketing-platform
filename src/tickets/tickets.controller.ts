@@ -8,8 +8,10 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
@@ -21,8 +23,11 @@ export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
   @Post()
-  create(@Body() createTicketDto: CreateTicketDto) {
-    return this.ticketsService.create(createTicketDto);
+  create(
+    @Body() createTicketDto: CreateTicketDto,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.ticketsService.create(createTicketDto, req.user.id);
   }
 
   @Get()
@@ -39,12 +44,16 @@ export class TicketsController {
   update(
     @Param('ticketId', ParseIntPipe) ticketId: number,
     @Body() updateTicketDto: UpdateTicketDto,
+    @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.ticketsService.update(ticketId, updateTicketDto);
+    return this.ticketsService.update(ticketId, updateTicketDto, req.user.id);
   }
 
   @Delete(':ticketId')
-  remove(@Param('ticketId', ParseIntPipe) ticketId: number) {
-    return this.ticketsService.remove(ticketId);
+  remove(
+    @Param('ticketId', ParseIntPipe) ticketId: number,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.ticketsService.remove(ticketId, req.user.id);
   }
 }

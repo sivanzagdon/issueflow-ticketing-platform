@@ -5,6 +5,7 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { User } from './entities/user.entity';
 import { mockUserEntity, mockUserResponse } from './testing/user.fixtures';
 import { UsersService } from './users.service';
@@ -36,6 +37,10 @@ describe('UsersService', () => {
         {
           provide: getRepositoryToken(User),
           useValue: repository,
+        },
+        {
+          provide: AuditLogService,
+          useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) },
         },
       ],
     }).compile();

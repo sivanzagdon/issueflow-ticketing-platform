@@ -738,7 +738,7 @@ Deliverables:
 - Submission-ready GitHub repository
 
 ### Slice 8 — Audit Log
-Status: Planned
+Status: Completed
 
 Goal:
 Implement a centralized append-only audit logging system for all state-changing actions across the platform.
@@ -835,6 +835,7 @@ Filtering:
 - action filter returns logs for a specific action.
 - performedBy filter returns logs created by a specific user.
 - filters may be combined.
+- actorType is stored on each log and returned in responses; it is not a query filter.
 
 Ticket stateHistory:
 - GET /tickets/:ticketId should include stateHistory.
@@ -877,8 +878,29 @@ Out of scope:
 - public POST /audit-logs endpoint
 - updating audit logs
 - deleting audit logs
+- actorType as a GET query filter
 - distributed event streaming
 - Kafka/event bus
 - websocket notifications
 - external SIEM integrations
+
+Validation checklist:
+- npm run test — 249 passing
+- npm run build — passing
+- npm run test:e2e — 16 passing (PostgreSQL required; see run.md)
+- E2E Jest config uses `maxWorkers: 1` in `test/jest-e2e.json` to avoid parallel TypeORM `synchronize` conflicts on a shared database
+- manual smoke:
+  - GET /audit-logs without JWT returns 401
+  - POST /audit-logs returns 404
+  - user/project/ticket/comment mutations create audit rows
+  - GET /tickets/:id includes stateHistory (ASC by createdAt)
+  - GET /audit-logs supports entityType, entityId, action, performedBy filters
+
+Deliverables:
+- AuditLogService (record, findAll, buildTicketStateHistory)
+- AuditLogController (GET /audit-logs only)
+- Audit logging wired into Users, Projects, Tickets, Comments services
+- Ticket stateHistory projection on GET /tickets/:id
+- Unit and e2e tests
+- Passing test suite
 

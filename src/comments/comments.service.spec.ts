@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { mockTicketResponse } from '../tickets/testing/ticket.fixtures';
 import { TicketsService } from '../tickets/tickets.service';
 import { mockUserResponse } from '../users/testing/user.fixtures';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { UsersService } from '../users/users.service';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -54,6 +55,10 @@ describe('CommentsService', () => {
         { provide: getRepositoryToken(Comment), useValue: commentRepository },
         { provide: TicketsService, useValue: ticketsService },
         { provide: UsersService, useValue: usersService },
+        {
+          provide: AuditLogService,
+          useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) },
+        },
       ],
     }).compile();
 
@@ -63,7 +68,10 @@ describe('CommentsService', () => {
   describe('create', () => {
     it('creates comment when ticket exists and author exists', async () => {
       const entity = mockCommentEntity();
-      ticketsService.findOne.mockResolvedValue(mockTicketResponse({ id: 1 }));
+      ticketsService.findOne.mockResolvedValue({
+        ...mockTicketResponse({ id: 1 }),
+        stateHistory: [],
+      });
       usersService.findOne.mockResolvedValue(mockUserResponse({ id: 2 }));
       commentRepository.create.mockReturnValue(entity);
       commentRepository.save.mockResolvedValue(entity);
@@ -98,7 +106,10 @@ describe('CommentsService', () => {
     });
 
     it('rejects create when author does not exist with NotFoundException', async () => {
-      ticketsService.findOne.mockResolvedValue(mockTicketResponse());
+      ticketsService.findOne.mockResolvedValue({
+        ...mockTicketResponse(),
+        stateHistory: [],
+      });
       usersService.findOne.mockRejectedValue(
         new NotFoundException('User 2 not found'),
       );
@@ -112,7 +123,10 @@ describe('CommentsService', () => {
 
   describe('findByTicket', () => {
     it('returns comments for a ticket', async () => {
-      ticketsService.findOne.mockResolvedValue(mockTicketResponse({ id: 5 }));
+      ticketsService.findOne.mockResolvedValue({
+        ...mockTicketResponse({ id: 5 }),
+        stateHistory: [],
+      });
       commentRepository.find.mockResolvedValue([
         mockCommentEntity({ id: 1, ticketId: 5 }),
         mockCommentEntity({ id: 2, ticketId: 5, content: 'Second' }),

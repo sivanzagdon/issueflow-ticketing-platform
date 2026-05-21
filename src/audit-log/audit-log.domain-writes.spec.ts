@@ -69,7 +69,7 @@ describe('Audit log domain write integration (contract)', () => {
               save: jest.fn().mockResolvedValue(mockUserEntity({ id: 9 })),
               find: jest.fn(),
               findOne: jest.fn().mockResolvedValue(mockUserEntity({ id: 9 })),
-              remove: jest.fn().mockResolvedValue(mockUserEntity({ id: 9 })),
+              delete: jest.fn().mockResolvedValue({ affected: 1 }),
             },
           },
           { provide: AuditLogService, useValue: auditLogService },
@@ -171,7 +171,9 @@ describe('Audit log domain write integration (contract)', () => {
             provide: getRepositoryToken(Ticket),
             useValue: {
               create: jest.fn().mockReturnValue(mockTicketEntity()),
-              save: jest.fn().mockResolvedValue(mockTicketEntity({ id: 7 })),
+              save: jest
+                .fn()
+                .mockImplementation((ticket: Ticket) => Promise.resolve(ticket)),
               find: jest.fn(),
               findOne: jest.fn().mockResolvedValue(mockTicketEntity({ id: 7 })),
               softDelete: jest.fn(),

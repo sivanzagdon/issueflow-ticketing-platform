@@ -6,6 +6,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { mockCommentResponse } from './testing/comment.fixtures';
 import { CommentsController } from './comments.controller';
+import { mockUserResponse } from '../users/testing/user.fixtures';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
@@ -17,6 +18,7 @@ const mockJwtAuthGuard: CanActivate = {
 describe('CommentsController', () => {
   let controller: CommentsController;
   let commentsService: jest.Mocked<CommentsService>;
+  const authReq = { user: mockUserResponse() };
 
   beforeEach(async () => {
     commentsService = {
@@ -133,9 +135,13 @@ describe('CommentsController', () => {
       const updated = mockCommentResponse({ content: 'Revised' });
       commentsService.update.mockResolvedValue(updated);
 
-      const result = await controller.update(4, 11, dto);
+      const result = await controller.update(4, 11, dto, authReq);
 
-      expect(commentsService.update).toHaveBeenCalledWith(11, dto);
+      expect(commentsService.update).toHaveBeenCalledWith(
+        11,
+        dto,
+        authReq.user.id,
+      );
       expect(result).toEqual(updated);
     });
   });
@@ -144,9 +150,9 @@ describe('CommentsController', () => {
     it('delegates to CommentsService.remove with commentId', async () => {
       commentsService.remove.mockResolvedValue(undefined);
 
-      await controller.remove(4, 15);
+      await controller.remove(4, 15, authReq);
 
-      expect(commentsService.remove).toHaveBeenCalledWith(15);
+      expect(commentsService.remove).toHaveBeenCalledWith(15, authReq.user.id);
     });
   });
 });

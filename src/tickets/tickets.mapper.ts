@@ -1,3 +1,4 @@
+import { TicketStateHistoryEntry } from '../audit-log/audit-log.types';
 import { Ticket } from './entities/ticket.entity';
 
 export type TicketResponse = Pick<
@@ -14,6 +15,10 @@ export type TicketResponse = Pick<
   | 'isOverdue'
   | 'version'
 >;
+
+export type TicketDetailResponse = TicketResponse & {
+  stateHistory: TicketStateHistoryEntry[];
+};
 
 export function toTicketResponse(ticket: Ticket): TicketResponse {
   return {

@@ -11,6 +11,7 @@ import { UsersService } from './users.service';
 describe('UsersController', () => {
   let controller: UsersController;
   let usersService: jest.Mocked<UsersService>;
+  const authReq = { user: mockUserResponse() };
 
   beforeEach(async () => {
     usersService = {
@@ -101,9 +102,9 @@ describe('UsersController', () => {
       });
       usersService.update.mockResolvedValue(updated);
 
-      const result = await controller.update(1, dto);
+      const result = await controller.update(1, dto, authReq);
 
-      expect(usersService.update).toHaveBeenCalledWith(1, dto);
+      expect(usersService.update).toHaveBeenCalledWith(1, dto, authReq.user.id);
       expect(result).toEqual(updated);
       expectNoPasswordHash(result);
     });
@@ -113,9 +114,9 @@ describe('UsersController', () => {
     it('delegates to UsersService.remove with parsed userId', async () => {
       usersService.remove.mockResolvedValue(undefined);
 
-      await controller.remove(1);
+      await controller.remove(1, authReq);
 
-      expect(usersService.remove).toHaveBeenCalledWith(1);
+      expect(usersService.remove).toHaveBeenCalledWith(1, authReq.user.id);
     });
   });
 });

@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { mockUserResponse } from '../users/testing/user.fixtures';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectsController } from './projects.controller';
@@ -19,6 +20,7 @@ const mockJwtAuthGuard: CanActivate = {
 describe('ProjectsController', () => {
   let controller: ProjectsController;
   let projectsService: jest.Mocked<ProjectsService>;
+  const authReq = { user: mockUserResponse() };
 
   beforeEach(async () => {
     projectsService = {
@@ -56,9 +58,9 @@ describe('ProjectsController', () => {
       const created = mockProjectResponse();
       projectsService.create.mockResolvedValue(created);
 
-      const result = await controller.create(dto);
+      const result = await controller.create(dto, authReq);
 
-      expect(projectsService.create).toHaveBeenCalledWith(dto);
+      expect(projectsService.create).toHaveBeenCalledWith(dto, authReq.user.id);
       expect(result).toEqual(created);
     });
   });
@@ -113,9 +115,9 @@ describe('ProjectsController', () => {
       });
       projectsService.update.mockResolvedValue(updated);
 
-      const result = await controller.update(1, dto);
+      const result = await controller.update(1, dto, authReq);
 
-      expect(projectsService.update).toHaveBeenCalledWith(1, dto);
+      expect(projectsService.update).toHaveBeenCalledWith(1, dto, authReq.user.id);
       expect(result).toEqual(updated);
     });
   });
@@ -124,9 +126,9 @@ describe('ProjectsController', () => {
     it('delegates to ProjectsService.remove with parsed projectId', async () => {
       projectsService.remove.mockResolvedValue(undefined);
 
-      await controller.remove(1);
+      await controller.remove(1, authReq);
 
-      expect(projectsService.remove).toHaveBeenCalledWith(1);
+      expect(projectsService.remove).toHaveBeenCalledWith(1, authReq.user.id);
     });
   });
 });

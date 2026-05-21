@@ -6,13 +6,21 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditAction } from '../common/enums/audit-action.enum';
+import { AuditActor } from '../common/enums/audit-actor.enum';
+import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
 import { ProjectsService } from '../projects/projects.service';
 import { UsersService } from '../users/users.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { Ticket } from './entities/ticket.entity';
-import { TicketResponse, toTicketResponse } from './tickets.mapper';
+import {
+  TicketDetailResponse,
+  TicketResponse,
+  toTicketResponse,
+} from './tickets.mapper';
 
 const STATUS_ORDER: TicketStatus[] = [
   TicketStatus.TODO,
@@ -36,9 +44,13 @@ export class TicketsService {
     private readonly ticketRepository: Repository<Ticket>,
     private readonly projectsService: ProjectsService,
     private readonly usersService: UsersService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
-  async create(createTicketDto: CreateTicketDto): Promise<TicketResponse> {
+  async create(
+    createTicketDto: CreateTicketDto,
+    performedBy?: number,
+  ): Promise<TicketResponse> {
     await this.projectsService.findOne(createTicketDto.projectId);
 
     if (createTicketDto.assigneeId != null) {
@@ -59,6 +71,24 @@ export class TicketsService {
     });
 
     const saved = await this.ticketRepository.save(ticket);
+
+    await this.auditLogService.record({
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.TICKET,
+      entityId: saved.id,
+      performedBy:
+        performedBy ?? createTicketDto.assigneeId ?? createTicketDto.projectId,
+      actorType: AuditActor.USER,
+      details: {
+        title: saved.title,
+        status: saved.status,
+        priority: saved.priority,
+        type: saved.type,
+        projectId: saved.projectId,
+        assigneeId: saved.assigneeId,
+      },
+    });
+
     return toTicketResponse(saved);
   }
 
@@ -69,16 +99,23 @@ export class TicketsService {
     return tickets.map(toTicketResponse);
   }
 
-  async findOne(id: number): Promise<TicketResponse> {
+  async findOne(id: number): Promise<TicketDetailResponse> {
     const ticket = await this.getTicketOrThrow(id);
-    return toTicketResponse(ticket);
+    const stateHistory =
+      await this.auditLogService.buildTicketStateHistory(id);
+    return {
+      ...toTicketResponse(ticket),
+      stateHistory,
+    };
   }
 
   async update(
     id: number,
     updateTicketDto: UpdateTicketDto,
+    performedBy?: number,
   ): Promise<TicketResponse> {
     const ticket = await this.getTicketOrThrow(id);
+    const beforeStatus = ticket.status;
 
     if (ticket.status === TicketStatus.DONE) {
       throw new BadRequestException('Cannot update a completed ticket');
@@ -117,12 +154,68 @@ export class TicketsService {
     }
 
     const saved = await this.ticketRepository.save(ticket);
+    const details = this.buildTicketUpdateDetails(
+      beforeStatus,
+      updateTicketDto,
+      saved,
+    );
+
+    await this.auditLogService.record({
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.TICKET,
+      entityId: saved.id,
+      performedBy: performedBy ?? saved.assigneeId ?? saved.projectId,
+      actorType: AuditActor.USER,
+      details: Object.keys(details).length > 0 ? details : null,
+    });
+
     return toTicketResponse(saved);
   }
 
-  async remove(id: number): Promise<void> {
-    await this.getTicketOrThrow(id);
+  async remove(id: number, performedBy?: number): Promise<void> {
+    const ticket = await this.getTicketOrThrow(id);
     await this.ticketRepository.softDelete({ id });
+    await this.auditLogService.record({
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.TICKET,
+      entityId: id,
+      performedBy: performedBy ?? ticket.assigneeId ?? ticket.projectId,
+      actorType: AuditActor.USER,
+      details: { deletedAt: new Date().toISOString() },
+    });
+  }
+
+  private buildTicketUpdateDetails(
+    beforeStatus: TicketStatus,
+    updateTicketDto: UpdateTicketDto,
+    saved: Ticket,
+  ): Record<string, unknown> {
+    const details: Record<string, unknown> = {};
+
+    if (
+      updateTicketDto.status !== undefined &&
+      updateTicketDto.status !== beforeStatus
+    ) {
+      details.from = beforeStatus;
+      details.to = saved.status;
+    }
+    if (updateTicketDto.title !== undefined) {
+      details.title = { after: saved.title };
+    }
+    if (updateTicketDto.description !== undefined) {
+      details.description = { after: saved.description };
+    }
+    if (updateTicketDto.priority !== undefined) {
+      details.priority = { after: saved.priority };
+    }
+    if (updateTicketDto.assigneeId !== undefined) {
+      details.assigneeId = { after: saved.assigneeId };
+    }
+    if (updateTicketDto.dueDate !== undefined) {
+      details.dueDate = { after: saved.dueDate };
+    }
+
+    return details;
   }
 
   private async getTicketOrThrow(id: number): Promise<Ticket> {
@@ -134,4 +227,4 @@ export class TicketsService {
   }
 }
 
-export type { TicketResponse };
+export type { TicketResponse, TicketDetailResponse };

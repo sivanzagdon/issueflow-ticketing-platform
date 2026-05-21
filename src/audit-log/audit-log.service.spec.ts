@@ -43,7 +43,8 @@ describe('AuditLogService', () => {
 
   describe('record (append-only)', () => {
     it('creates audit entry via repository create and save', async () => {
-      const entity = mockAuditLogEntity();
+      const details = { title: 'Bug', status: TicketStatus.TODO };
+      const entity = mockAuditLogEntity({ details });
       auditLogRepository.create.mockReturnValue(entity);
       auditLogRepository.save.mockResolvedValue(entity);
 
@@ -53,7 +54,7 @@ describe('AuditLogService', () => {
         entityId: 5,
         performedBy: 2,
         actorType: AuditActor.USER,
-        details: { title: 'Bug', status: TicketStatus.TODO },
+        details,
       });
 
       expect(auditLogRepository.create).toHaveBeenCalled();

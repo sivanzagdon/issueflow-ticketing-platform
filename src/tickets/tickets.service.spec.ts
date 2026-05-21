@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { TicketPriority } from '../common/enums/ticket-priority.enum';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
 import { TicketType } from '../common/enums/ticket-type.enum';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { ProjectsService } from '../projects/projects.service';
 import { UsersService } from '../users/users.service';
 import { mockProjectResponse } from '../projects/testing/project.fixtures';
@@ -57,6 +58,13 @@ describe('TicketsService', () => {
         { provide: getRepositoryToken(Ticket), useValue: ticketRepository },
         { provide: ProjectsService, useValue: projectsService },
         { provide: UsersService, useValue: usersService },
+        {
+          provide: AuditLogService,
+          useValue: {
+            record: jest.fn().mockResolvedValue({ id: 1 }),
+            buildTicketStateHistory: jest.fn().mockResolvedValue([]),
+          },
+        },
       ],
     }).compile();
 
@@ -143,7 +151,10 @@ describe('TicketsService', () => {
       expect(ticketRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1 },
       });
-      expect(result).toEqual(mockTicketResponse());
+      expect(result).toEqual({
+        ...mockTicketResponse(),
+        stateHistory: [],
+      });
       expect(result.version).toBe(1);
     });
 
