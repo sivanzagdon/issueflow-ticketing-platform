@@ -59,13 +59,17 @@ describe('AuditLogService', () => {
 
       expect(auditLogRepository.create).toHaveBeenCalled();
       expect(auditLogRepository.save).toHaveBeenCalledWith(entity);
-      expect(result).toMatchObject({
+      const apiResult = result as Record<string, unknown>;
+      expect(apiResult).toMatchObject({
         action: AuditAction.CREATE,
         entityType: AuditEntityType.TICKET,
         entityId: 5,
         performedBy: 2,
-        actorType: AuditActor.USER,
+        actor: AuditActor.USER,
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       });
+      expect(apiResult).not.toHaveProperty('actorType');
+      expect(apiResult).not.toHaveProperty('createdAt');
       expect(result.details).toEqual({
         title: 'Bug',
         status: TicketStatus.TODO,
@@ -112,8 +116,10 @@ describe('AuditLogService', () => {
         actorType: AuditActor.USER,
       });
 
-      expect(result.performedBy).toBe(7);
-      expect(result.actorType).toBe(AuditActor.USER);
+      const apiResult = result as Record<string, unknown>;
+      expect(apiResult.performedBy).toBe(7);
+      expect(apiResult.actor).toBe(AuditActor.USER);
+      expect(apiResult.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
     it('records SYSTEM actions with performedBy null', async () => {
@@ -134,8 +140,10 @@ describe('AuditLogService', () => {
         details: { previousPriority: 'LOW', newPriority: 'MEDIUM' },
       });
 
-      expect(result.performedBy).toBeNull();
-      expect(result.actorType).toBe(AuditActor.SYSTEM);
+      const apiResult = result as Record<string, unknown>;
+      expect(apiResult.performedBy).toBeNull();
+      expect(apiResult.actor).toBe(AuditActor.SYSTEM);
+      expect(apiResult.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
     it('does not update or delete existing audit rows (append-only)', async () => {
@@ -357,12 +365,14 @@ describe('AuditLogService', () => {
         id: 5,
         action: AuditAction.CREATE,
         performedBy: 2,
-        actorType: AuditActor.USER,
+        actor: AuditActor.USER,
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
         details: expect.any(Object),
       });
       expect(history[0]).not.toHaveProperty('entityType');
       expect(history[0]).not.toHaveProperty('entityId');
-      expect(history[0].createdAt).toBeInstanceOf(Date);
+      expect(history[0]).not.toHaveProperty('actorType');
+      expect(history[0]).not.toHaveProperty('createdAt');
     });
 
     it('returns empty stateHistory when ticket has no audit logs', async () => {

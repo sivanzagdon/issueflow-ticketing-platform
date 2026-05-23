@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { mockDataSourceWithRepositories } from '../audit-log/testing/transaction-test.helpers';
 import { TicketPriority } from '../common/enums/ticket-priority.enum';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
 import { TicketType } from '../common/enums/ticket-type.enum';
@@ -64,6 +65,12 @@ describe('TicketsService', () => {
             record: jest.fn().mockResolvedValue({ id: 1 }),
             buildTicketStateHistory: jest.fn().mockResolvedValue([]),
           },
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSourceWithRepositories(
+            new Map([[Ticket, ticketRepository]]),
+          ),
         },
       ],
     }).compile();

@@ -1,7 +1,8 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { mockDataSourceWithRepositories } from '../audit-log/testing/transaction-test.helpers';
 import { mockTicketResponse } from '../tickets/testing/ticket.fixtures';
 import { TicketsService } from '../tickets/tickets.service';
 import { mockUserResponse } from '../users/testing/user.fixtures';
@@ -58,6 +59,12 @@ describe('CommentsService', () => {
         {
           provide: AuditLogService,
           useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) },
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSourceWithRepositories(
+            new Map([[Comment, commentRepository]]),
+          ),
         },
       ],
     }).compile();

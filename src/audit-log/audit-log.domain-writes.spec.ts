@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { mockDataSourceWithRepositories } from './testing/transaction-test.helpers';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
 import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
@@ -52,6 +54,7 @@ describe('Audit log domain write integration (contract)', () => {
         performedBy: expect.any(Number),
         ...extra,
       }),
+      expect.objectContaining({ getRepository: expect.any(Function) }),
     );
   };
 
@@ -59,20 +62,24 @@ describe('Audit log domain write integration (contract)', () => {
     let usersService: UsersService;
 
     beforeEach(async () => {
+      const userRepository = {
+        create: jest.fn().mockReturnValue(mockUserEntity()),
+        save: jest.fn().mockResolvedValue(mockUserEntity({ id: 9 })),
+        find: jest.fn(),
+        findOne: jest.fn().mockResolvedValue(mockUserEntity({ id: 9 })),
+        delete: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
       const module = await Test.createTestingModule({
         providers: [
           UsersService,
-          {
-            provide: getRepositoryToken(User),
-            useValue: {
-              create: jest.fn().mockReturnValue(mockUserEntity()),
-              save: jest.fn().mockResolvedValue(mockUserEntity({ id: 9 })),
-              find: jest.fn(),
-              findOne: jest.fn().mockResolvedValue(mockUserEntity({ id: 9 })),
-              delete: jest.fn().mockResolvedValue({ affected: 1 }),
-            },
-          },
+          { provide: getRepositoryToken(User), useValue: userRepository },
           { provide: AuditLogService, useValue: auditLogService },
+          {
+            provide: DataSource,
+            useValue: mockDataSourceWithRepositories(
+              new Map([[User, userRepository]]),
+            ),
+          },
         ],
       }).compile();
       usersService = module.get(UsersService);
@@ -104,24 +111,28 @@ describe('Audit log domain write integration (contract)', () => {
     let projectsService: ProjectsService;
 
     beforeEach(async () => {
+      const projectRepository = {
+        create: jest.fn().mockReturnValue(mockProjectEntity()),
+        save: jest.fn().mockResolvedValue(mockProjectEntity({ id: 3 })),
+        find: jest.fn(),
+        findOne: jest.fn().mockResolvedValue(mockProjectEntity({ id: 3 })),
+        softDelete: jest.fn(),
+      };
       const module = await Test.createTestingModule({
         providers: [
           ProjectsService,
-          {
-            provide: getRepositoryToken(Project),
-            useValue: {
-              create: jest.fn().mockReturnValue(mockProjectEntity()),
-              save: jest.fn().mockResolvedValue(mockProjectEntity({ id: 3 })),
-              find: jest.fn(),
-              findOne: jest.fn().mockResolvedValue(mockProjectEntity({ id: 3 })),
-              softDelete: jest.fn(),
-            },
-          },
+          { provide: getRepositoryToken(Project), useValue: projectRepository },
           {
             provide: UsersService,
             useValue: { findOne: jest.fn().mockResolvedValue(mockUserResponse()) },
           },
           { provide: AuditLogService, useValue: auditLogService },
+          {
+            provide: DataSource,
+            useValue: mockDataSourceWithRepositories(
+              new Map([[Project, projectRepository]]),
+            ),
+          },
         ],
       }).compile();
       projectsService = module.get(ProjectsService);
@@ -134,6 +145,7 @@ describe('Audit log domain write integration (contract)', () => {
           action: AuditAction.CREATE,
           entityType: AuditEntityType.PROJECT,
         }),
+        expect.anything(),
       );
     });
 
@@ -145,6 +157,7 @@ describe('Audit log domain write integration (contract)', () => {
           entityType: AuditEntityType.PROJECT,
           entityId: 3,
         }),
+        expect.anything(),
       );
     });
 
@@ -156,6 +169,7 @@ describe('Audit log domain write integration (contract)', () => {
           entityType: AuditEntityType.PROJECT,
           entityId: 3,
         }),
+        expect.anything(),
       );
     });
   });
@@ -164,21 +178,19 @@ describe('Audit log domain write integration (contract)', () => {
     let ticketsService: TicketsService;
 
     beforeEach(async () => {
+      const ticketRepository = {
+        create: jest.fn().mockReturnValue(mockTicketEntity()),
+        save: jest
+          .fn()
+          .mockImplementation((ticket: Ticket) => Promise.resolve(ticket)),
+        find: jest.fn(),
+        findOne: jest.fn().mockResolvedValue(mockTicketEntity({ id: 7 })),
+        softDelete: jest.fn(),
+      };
       const module = await Test.createTestingModule({
         providers: [
           TicketsService,
-          {
-            provide: getRepositoryToken(Ticket),
-            useValue: {
-              create: jest.fn().mockReturnValue(mockTicketEntity()),
-              save: jest
-                .fn()
-                .mockImplementation((ticket: Ticket) => Promise.resolve(ticket)),
-              find: jest.fn(),
-              findOne: jest.fn().mockResolvedValue(mockTicketEntity({ id: 7 })),
-              softDelete: jest.fn(),
-            },
-          },
+          { provide: getRepositoryToken(Ticket), useValue: ticketRepository },
           {
             provide: ProjectsService,
             useValue: {
@@ -192,6 +204,12 @@ describe('Audit log domain write integration (contract)', () => {
             },
           },
           { provide: AuditLogService, useValue: auditLogService },
+          {
+            provide: DataSource,
+            useValue: mockDataSourceWithRepositories(
+              new Map([[Ticket, ticketRepository]]),
+            ),
+          },
         ],
       }).compile();
       ticketsService = module.get(TicketsService);
@@ -211,6 +229,7 @@ describe('Audit log domain write integration (contract)', () => {
           action: AuditAction.CREATE,
           entityType: AuditEntityType.TICKET,
         }),
+        expect.anything(),
       );
     });
 
@@ -222,6 +241,7 @@ describe('Audit log domain write integration (contract)', () => {
           entityType: AuditEntityType.TICKET,
           entityId: 7,
         }),
+        expect.anything(),
       );
     });
 
@@ -239,6 +259,7 @@ describe('Audit log domain write integration (contract)', () => {
             to: TicketStatus.IN_PROGRESS,
           }),
         }),
+        expect.anything(),
       );
     });
 
@@ -250,6 +271,7 @@ describe('Audit log domain write integration (contract)', () => {
           entityType: AuditEntityType.TICKET,
           entityId: 7,
         }),
+        expect.anything(),
       );
     });
   });
@@ -258,19 +280,17 @@ describe('Audit log domain write integration (contract)', () => {
     let commentsService: CommentsService;
 
     beforeEach(async () => {
+      const commentRepository = {
+        create: jest.fn().mockReturnValue(mockCommentEntity()),
+        save: jest.fn().mockResolvedValue(mockCommentEntity({ id: 4 })),
+        find: jest.fn(),
+        findOne: jest.fn().mockResolvedValue(mockCommentEntity({ id: 4 })),
+        remove: jest.fn(),
+      };
       const module = await Test.createTestingModule({
         providers: [
           CommentsService,
-          {
-            provide: getRepositoryToken(Comment),
-            useValue: {
-              create: jest.fn().mockReturnValue(mockCommentEntity()),
-              save: jest.fn().mockResolvedValue(mockCommentEntity({ id: 4 })),
-              find: jest.fn(),
-              findOne: jest.fn().mockResolvedValue(mockCommentEntity({ id: 4 })),
-              remove: jest.fn(),
-            },
-          },
+          { provide: getRepositoryToken(Comment), useValue: commentRepository },
           {
             provide: TicketsService,
             useValue: { findOne: jest.fn().mockResolvedValue({ id: 1 }) },
@@ -280,6 +300,12 @@ describe('Audit log domain write integration (contract)', () => {
             useValue: { findOne: jest.fn().mockResolvedValue(mockUserResponse()) },
           },
           { provide: AuditLogService, useValue: auditLogService },
+          {
+            provide: DataSource,
+            useValue: mockDataSourceWithRepositories(
+              new Map([[Comment, commentRepository]]),
+            ),
+          },
         ],
       }).compile();
       commentsService = module.get(CommentsService);
@@ -295,6 +321,7 @@ describe('Audit log domain write integration (contract)', () => {
           action: AuditAction.CREATE,
           entityType: AuditEntityType.COMMENT,
         }),
+        expect.anything(),
       );
     });
 
@@ -306,6 +333,7 @@ describe('Audit log domain write integration (contract)', () => {
           entityType: AuditEntityType.COMMENT,
           entityId: 4,
         }),
+        expect.anything(),
       );
     });
 
@@ -317,6 +345,7 @@ describe('Audit log domain write integration (contract)', () => {
           entityType: AuditEntityType.COMMENT,
           entityId: 4,
         }),
+        expect.anything(),
       );
     });
   });

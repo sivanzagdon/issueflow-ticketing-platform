@@ -2,6 +2,7 @@ import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AuditAction } from '../../common/enums/audit-action.enum';
+import { AuditActor } from '../../common/enums/audit-actor.enum';
 import { AuditEntityType } from '../../common/enums/audit-entity-type.enum';
 import { AuditLogQueryDto } from './audit-log-query.dto';
 
@@ -46,7 +47,22 @@ describe('AuditLogQueryDto', () => {
     expect(errors.some((e) => e.property === 'performedBy')).toBe(true);
   });
 
-  it('rejects actorType query param (not supported as filter)', async () => {
+  it('accepts actor filter (README query param)', async () => {
+    const dto = plainToInstance(AuditLogQueryDto, {
+      entityType: AuditEntityType.TICKET,
+      actor: AuditActor.USER,
+    });
+    expect(dto.actor).toBe(AuditActor.USER);
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects invalid actor enum value', async () => {
+    const errors = await validateDto({ actor: 'INVALID' });
+    expect(errors.some((e) => e.property === 'actor')).toBe(true);
+  });
+
+  it('rejects legacy actorType query param in favor of actor', async () => {
     const pipe = new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,

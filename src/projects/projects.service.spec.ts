@@ -1,7 +1,8 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { mockDataSourceWithRepositories } from '../audit-log/testing/transaction-test.helpers';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { UsersService } from '../users/users.service';
 import { mockUserResponse } from '../users/testing/user.fixtures';
@@ -46,6 +47,12 @@ describe('ProjectsService', () => {
         {
           provide: AuditLogService,
           useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) },
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSourceWithRepositories(
+            new Map([[Project, projectRepository]]),
+          ),
         },
       ],
     }).compile();

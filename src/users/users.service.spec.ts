@@ -1,7 +1,8 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { mockDataSourceWithRepositories } from '../audit-log/testing/transaction-test.helpers';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -41,6 +42,10 @@ describe('UsersService', () => {
         {
           provide: AuditLogService,
           useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) },
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSourceWithRepositories(new Map([[User, repository]])),
         },
       ],
     }).compile();
