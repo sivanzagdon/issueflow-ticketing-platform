@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -20,6 +20,7 @@ export class CommentsService {
     private readonly ticketsService: TicketsService,
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(
@@ -29,32 +30,38 @@ export class CommentsService {
     await this.ticketsService.findOne(ticketId);
     await this.usersService.findOne(dto.authorId);
 
-    const comment = this.commentRepository.create({
-      ticketId,
-      authorId: dto.authorId,
-      content: dto.content,
-    });
-
-    const saved = await this.commentRepository.save(comment);
-
-    await this.auditLogService.record({
-      action: AuditAction.CREATE,
-      entityType: AuditEntityType.COMMENT,
-      entityId: saved.id,
-      performedBy: dto.authorId,
-      actorType: AuditActor.USER,
-      details: {
+    return this.dataSource.transaction(async (manager) => {
+      const commentRepo = manager.getRepository(Comment);
+      const comment = commentRepo.create({
         ticketId,
         authorId: dto.authorId,
         content: dto.content,
-      },
-    });
+      });
 
-    return toCommentResponse({
-      ...saved,
-      ticketId,
-      authorId: dto.authorId,
-      content: dto.content,
+      const saved = await commentRepo.save(comment);
+
+      await this.auditLogService.record(
+        {
+          action: AuditAction.CREATE,
+          entityType: AuditEntityType.COMMENT,
+          entityId: saved.id,
+          performedBy: dto.authorId,
+          actorType: AuditActor.USER,
+          details: {
+            ticketId,
+            authorId: dto.authorId,
+            content: dto.content,
+          },
+        },
+        manager,
+      );
+
+      return toCommentResponse({
+        ...saved,
+        ticketId,
+        authorId: dto.authorId,
+        content: dto.content,
+      });
     });
   }
 
@@ -81,20 +88,26 @@ export class CommentsService {
 
     const beforeContent = comment.content;
     comment.content = dto.content;
-    const saved = await this.commentRepository.save(comment);
 
-    await this.auditLogService.record({
-      action: AuditAction.UPDATE,
-      entityType: AuditEntityType.COMMENT,
-      entityId: saved.id,
-      performedBy: performedBy ?? comment.authorId,
-      actorType: AuditActor.USER,
-      details: {
-        content: { before: beforeContent, after: saved.content },
-      },
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.getRepository(Comment).save(comment);
+
+      await this.auditLogService.record(
+        {
+          action: AuditAction.UPDATE,
+          entityType: AuditEntityType.COMMENT,
+          entityId: saved.id,
+          performedBy: performedBy ?? comment.authorId,
+          actorType: AuditActor.USER,
+          details: {
+            content: { before: beforeContent, after: saved.content },
+          },
+        },
+        manager,
+      );
+
+      return toCommentResponse(saved);
     });
-
-    return toCommentResponse(saved);
   }
 
   async remove(commentId: number, performedBy?: number): Promise<void> {
@@ -105,14 +118,18 @@ export class CommentsService {
       throw new NotFoundException(`Comment ${commentId} not found`);
     }
 
-    await this.commentRepository.remove(comment);
-
-    await this.auditLogService.record({
-      action: AuditAction.DELETE,
-      entityType: AuditEntityType.COMMENT,
-      entityId: commentId,
-      performedBy: performedBy ?? comment.authorId,
-      actorType: AuditActor.USER,
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(Comment).remove(comment);
+      await this.auditLogService.record(
+        {
+          action: AuditAction.DELETE,
+          entityType: AuditEntityType.COMMENT,
+          entityId: commentId,
+          performedBy: performedBy ?? comment.authorId,
+          actorType: AuditActor.USER,
+        },
+        manager,
+      );
     });
   }
 }

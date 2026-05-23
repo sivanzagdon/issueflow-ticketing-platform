@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { EntityManager, FindOptionsWhere, Repository } from 'typeorm';
 import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
 import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 import {
@@ -18,8 +18,15 @@ export class AuditLogService {
     private readonly auditLogRepository: Repository<AuditLog>,
   ) {}
 
-  async record(input: RecordAuditLogInput): Promise<AuditLogResponse> {
-    const entity = this.auditLogRepository.create({
+  async record(
+    input: RecordAuditLogInput,
+    manager?: EntityManager,
+  ): Promise<AuditLogResponse> {
+    const repository = manager
+      ? manager.getRepository(AuditLog)
+      : this.auditLogRepository;
+
+    const entity = repository.create({
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId,
@@ -27,7 +34,7 @@ export class AuditLogService {
       actorType: input.actorType,
       details: input.details ?? null,
     });
-    const saved = await this.auditLogRepository.save(entity);
+    const saved = await repository.save(entity);
     return toAuditLogResponse(saved);
   }
 
@@ -53,7 +60,10 @@ export class AuditLogService {
 
     return logs
       .map(toTicketStateHistoryEntry)
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
   }
 
   private buildWhere(query: AuditLogQueryDto): FindOptionsWhere<AuditLog> {
@@ -67,6 +77,9 @@ export class AuditLogService {
     }
     if (query.action !== undefined) {
       where.action = query.action;
+    }
+    if (query.actor !== undefined) {
+      where.actorType = query.actor;
     }
     if (query.performedBy !== undefined) {
       where.performedBy = query.performedBy;

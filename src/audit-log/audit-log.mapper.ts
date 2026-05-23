@@ -1,17 +1,20 @@
+import { AuditAction } from '../common/enums/audit-action.enum';
+import { AuditActor } from '../common/enums/audit-actor.enum';
+import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
 import { TicketStateHistoryEntry } from './audit-log.types';
 import { AuditLog } from './entities/audit-log.entity';
 
-export type AuditLogResponse = Pick<
-  AuditLog,
-  | 'id'
-  | 'action'
-  | 'entityType'
-  | 'entityId'
-  | 'performedBy'
-  | 'actorType'
-  | 'createdAt'
-  | 'details'
->;
+/** Public API shape for GET /audit-logs (README contract). */
+export type AuditLogResponse = {
+  id: number;
+  action: AuditAction;
+  entityType: AuditEntityType;
+  entityId: number;
+  performedBy: number | null;
+  actor: AuditActor;
+  timestamp: string;
+  details: Record<string, unknown> | null;
+};
 
 export function toAuditLogResponse(log: AuditLog): AuditLogResponse {
   return {
@@ -20,8 +23,8 @@ export function toAuditLogResponse(log: AuditLog): AuditLogResponse {
     entityType: log.entityType,
     entityId: log.entityId,
     performedBy: log.performedBy,
-    actorType: log.actorType,
-    createdAt: log.createdAt,
+    actor: log.actorType,
+    timestamp: log.createdAt.toISOString(),
     details: log.details,
   };
 }
@@ -29,12 +32,13 @@ export function toAuditLogResponse(log: AuditLog): AuditLogResponse {
 export function toTicketStateHistoryEntry(
   log: AuditLog,
 ): TicketStateHistoryEntry {
+  const response = toAuditLogResponse(log);
   return {
-    id: log.id,
-    action: log.action,
-    performedBy: log.performedBy,
-    actorType: log.actorType,
-    createdAt: log.createdAt,
-    details: log.details,
+    id: response.id,
+    action: response.action,
+    performedBy: response.performedBy,
+    actor: response.actor,
+    timestamp: response.timestamp,
+    details: response.details,
   };
 }

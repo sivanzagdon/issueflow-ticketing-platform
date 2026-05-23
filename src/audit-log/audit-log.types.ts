@@ -17,5 +17,5 @@ export interface RecordAuditLogInput {
 /** Derived projection from audit_logs; not persisted on Ticket. */
 export type TicketStateHistoryEntry = Pick<
   AuditLogResponse,
-  'id' | 'action' | 'performedBy' | 'actorType' | 'createdAt' | 'details'
+  'id' | 'action' | 'performedBy' | 'actor' | 'timestamp' | 'details'
 >;

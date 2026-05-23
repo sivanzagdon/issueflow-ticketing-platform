@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -20,6 +20,7 @@ export class ProjectsService {
     private readonly projectRepository: Repository<Project>,
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(
@@ -28,26 +29,32 @@ export class ProjectsService {
   ): Promise<ProjectResponse> {
     await this.usersService.findOne(createProjectDto.ownerId);
 
-    const project = this.projectRepository.create({
-      name: createProjectDto.name,
-      description: createProjectDto.description,
-      ownerId: createProjectDto.ownerId,
-    });
-    const saved = await this.projectRepository.save(project);
+    return this.dataSource.transaction(async (manager) => {
+      const projectRepo = manager.getRepository(Project);
+      const project = projectRepo.create({
+        name: createProjectDto.name,
+        description: createProjectDto.description,
+        ownerId: createProjectDto.ownerId,
+      });
+      const saved = await projectRepo.save(project);
 
-    await this.auditLogService.record({
-      action: AuditAction.CREATE,
-      entityType: AuditEntityType.PROJECT,
-      entityId: saved.id,
-      performedBy: performedBy ?? createProjectDto.ownerId,
-      actorType: AuditActor.USER,
-      details: {
-        name: saved.name,
-        ownerId: saved.ownerId,
-      },
-    });
+      await this.auditLogService.record(
+        {
+          action: AuditAction.CREATE,
+          entityType: AuditEntityType.PROJECT,
+          entityId: saved.id,
+          performedBy: performedBy ?? createProjectDto.ownerId,
+          actorType: AuditActor.USER,
+          details: {
+            name: saved.name,
+            ownerId: saved.ownerId,
+          },
+        },
+        manager,
+      );
 
-    return toProjectResponse(saved);
+      return toProjectResponse(saved);
+    });
   }
 
   async findAll(): Promise<ProjectResponse[]> {
@@ -75,42 +82,56 @@ export class ProjectsService {
       project.description = updateProjectDto.description;
     }
 
-    const saved = await this.projectRepository.save(project);
-    const details: Record<string, unknown> = {};
-    if (updateProjectDto.name !== undefined && updateProjectDto.name !== before.name) {
-      details.name = { before: before.name, after: saved.name };
-    }
-    if (
-      updateProjectDto.description !== undefined &&
-      updateProjectDto.description !== before.description
-    ) {
-      details.description = {
-        before: before.description,
-        after: saved.description,
-      };
-    }
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.getRepository(Project).save(project);
+      const details: Record<string, unknown> = {};
+      if (
+        updateProjectDto.name !== undefined &&
+        updateProjectDto.name !== before.name
+      ) {
+        details.name = { before: before.name, after: saved.name };
+      }
+      if (
+        updateProjectDto.description !== undefined &&
+        updateProjectDto.description !== before.description
+      ) {
+        details.description = {
+          before: before.description,
+          after: saved.description,
+        };
+      }
 
-    await this.auditLogService.record({
-      action: AuditAction.UPDATE,
-      entityType: AuditEntityType.PROJECT,
-      entityId: saved.id,
-      performedBy: performedBy ?? saved.ownerId,
-      actorType: AuditActor.USER,
-      details: Object.keys(details).length > 0 ? details : null,
+      await this.auditLogService.record(
+        {
+          action: AuditAction.UPDATE,
+          entityType: AuditEntityType.PROJECT,
+          entityId: saved.id,
+          performedBy: performedBy ?? saved.ownerId,
+          actorType: AuditActor.USER,
+          details: Object.keys(details).length > 0 ? details : null,
+        },
+        manager,
+      );
+
+      return toProjectResponse(saved);
     });
-
-    return toProjectResponse(saved);
   }
 
   async remove(id: number, performedBy?: number): Promise<void> {
     const project = await this.getProjectOrThrow(id);
-    await this.projectRepository.softDelete({ id });
-    await this.auditLogService.record({
-      action: AuditAction.DELETE,
-      entityType: AuditEntityType.PROJECT,
-      entityId: id,
-      performedBy: performedBy ?? project.ownerId,
-      actorType: AuditActor.USER,
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(Project).softDelete({ id });
+      await this.auditLogService.record(
+        {
+          action: AuditAction.DELETE,
+          entityType: AuditEntityType.PROJECT,
+          entityId: id,
+          performedBy: performedBy ?? project.ownerId,
+          actorType: AuditActor.USER,
+        },
+        manager,
+      );
     });
   }
 
