@@ -1,3 +1,4 @@
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
 import { AuditLogController } from '../audit-log/audit-log.controller';
@@ -79,6 +80,14 @@ describe('Security / JWT guard coverage', () => {
         expect(isPublic(ProjectsController, handler)).not.toBe(true);
       },
     );
+
+    it.each(['findAllDeleted', 'restore'] as const)(
+      '%s applies RolesGuard for ADMIN-only soft-delete routes',
+      (handler) => {
+        const guards = handlerGuards(ProjectsController, handler);
+        expect(guards).toEqual(expect.arrayContaining([RolesGuard]));
+      },
+    );
   });
 
   describe('TicketsController', () => {
@@ -86,6 +95,14 @@ describe('Security / JWT guard coverage', () => {
       const guards = Reflect.getMetadata('__guards__', TicketsController);
       expect(guards).toEqual(expect.arrayContaining([JwtAuthGuard]));
     });
+
+    it.each(['findAllDeleted', 'restore'] as const)(
+      '%s applies RolesGuard for ADMIN-only soft-delete routes',
+      (handler) => {
+        const guards = handlerGuards(TicketsController, handler);
+        expect(guards).toEqual(expect.arrayContaining([RolesGuard]));
+      },
+    );
   });
 
   describe('CommentsController', () => {

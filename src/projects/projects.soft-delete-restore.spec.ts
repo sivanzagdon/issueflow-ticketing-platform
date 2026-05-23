@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -9,7 +9,6 @@ import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
 import {
   createMockTransactionalContext,
   expectTransactionalAuditCall,
-  mockDataSourceWithRepositories,
 } from '../audit-log/testing/transaction-test.helpers';
 import { UsersService } from '../users/users.service';
 import { mockUserResponse } from '../users/testing/user.fixtures';
@@ -31,6 +30,7 @@ describe('ProjectsService soft delete and restore (slice 9)', () => {
     >
   >;
   let auditLogService: jest.Mocked<Pick<AuditLogService, 'record'>>;
+  let dataSource: { transaction: jest.Mock };
   let transactionalManager: ReturnType<
     typeof createMockTransactionalContext
   >['manager'];
@@ -46,6 +46,7 @@ describe('ProjectsService soft delete and restore (slice 9)', () => {
 
     auditLogService = { record: jest.fn().mockResolvedValue({ id: 1 }) };
     const ctx = createMockTransactionalContext();
+    dataSource = ctx.dataSource;
     transactionalManager = ctx.manager;
     transactionalManager.getRepository = jest.fn((entity: unknown) => {
       if (entity === Project) {
@@ -63,12 +64,7 @@ describe('ProjectsService soft delete and restore (slice 9)', () => {
           useValue: { findOne: jest.fn().mockResolvedValue(mockUserResponse()) },
         },
         { provide: AuditLogService, useValue: auditLogService },
-        {
-          provide: DataSource,
-          useValue: mockDataSourceWithRepositories(
-            new Map([[Project, projectRepository]]),
-          ),
-        },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
@@ -166,9 +162,10 @@ describe('ProjectsService soft delete and restore (slice 9)', () => {
 
       const result = await service.findAllDeleted();
 
-      expect(projectRepository.find).toHaveBeenCalledWith(
-        expect.objectContaining({ withDeleted: true }),
-      );
+      expect(projectRepository.find).toHaveBeenCalledWith({
+        where: { deletedAt: Not(IsNull()) },
+        withDeleted: true,
+      });
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({ id: 3 });
     });
@@ -176,9 +173,9 @@ describe('ProjectsService soft delete and restore (slice 9)', () => {
 
   describe('restore (POST /projects/:projectId/restore)', () => {
     it('restores soft-deleted project and records RESTORE audit atomically', async () => {
-      projectRepository.findOne.mockResolvedValue(
-        mockProjectEntity({ id: 3, deletedAt: new Date() }),
-      );
+      projectRepository.findOne
+        .mockResolvedValueOnce(mockProjectEntity({ id: 3, deletedAt: new Date() }))
+        .mockResolvedValueOnce(mockProjectEntity({ id: 3, deletedAt: null }));
       projectRepository.restore.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
 
       const result = await service.restore(3, 1);
@@ -210,9 +207,9 @@ describe('ProjectsService soft delete and restore (slice 9)', () => {
     });
 
     it('rolls back restore when audit record fails', async () => {
-      projectRepository.findOne.mockResolvedValue(
-        mockProjectEntity({ id: 3, deletedAt: new Date() }),
-      );
+      projectRepository.findOne
+        .mockResolvedValueOnce(mockProjectEntity({ id: 3, deletedAt: new Date() }))
+        .mockResolvedValueOnce(mockProjectEntity({ id: 3, deletedAt: null }));
       projectRepository.restore.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
       auditLogService.record.mockRejectedValue(new Error('audit insert failed'));
 

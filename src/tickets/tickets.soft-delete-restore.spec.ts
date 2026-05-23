@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -16,7 +16,6 @@ import { mockUserResponse } from '../users/testing/user.fixtures';
 import {
   createMockTransactionalContext,
   expectTransactionalAuditCall,
-  mockDataSourceWithRepositories,
 } from '../audit-log/testing/transaction-test.helpers';
 import { Ticket } from './entities/ticket.entity';
 import { mockTicketEntity } from './testing/ticket.fixtures';
@@ -36,7 +35,9 @@ describe('TicketsService soft delete and restore (slice 9)', () => {
       'find' | 'findOne' | 'softDelete' | 'restore' | 'delete' | 'count'
     >
   >;
-  let auditLogService: jest.Mocked<Pick<AuditLogService, 'record'>>;
+  let auditLogService: jest.Mocked<
+    Pick<AuditLogService, 'record' | 'buildTicketStateHistory'>
+  >;
   let dataSource: { transaction: jest.Mock };
   let transactionalManager: ReturnType<
     typeof createMockTransactionalContext
@@ -52,7 +53,10 @@ describe('TicketsService soft delete and restore (slice 9)', () => {
       count: jest.fn(),
     };
 
-    auditLogService = { record: jest.fn().mockResolvedValue({ id: 1 }) };
+    auditLogService = {
+      record: jest.fn().mockResolvedValue({ id: 1 }),
+      buildTicketStateHistory: jest.fn().mockResolvedValue([]),
+    };
     const ctx = createMockTransactionalContext();
     dataSource = ctx.dataSource;
     transactionalManager = ctx.manager;
@@ -77,12 +81,7 @@ describe('TicketsService soft delete and restore (slice 9)', () => {
           useValue: { findOne: jest.fn().mockResolvedValue(mockUserResponse()) },
         },
         { provide: AuditLogService, useValue: auditLogService },
-        {
-          provide: DataSource,
-          useValue: mockDataSourceWithRepositories(
-            new Map([[Ticket, ticketRepository]]),
-          ),
-        },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
@@ -187,18 +186,17 @@ describe('TicketsService soft delete and restore (slice 9)', () => {
     it('returns only soft-deleted tickets for the project', async () => {
       const deleted = mockTicketEntity({
         id: 3,
+        projectId: 5,
         deletedAt: new Date('2026-05-01T00:00:00.000Z'),
       });
       ticketRepository.find.mockResolvedValue([deleted]);
 
       const result = await service.findAllDeleted(5);
 
-      expect(ticketRepository.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { projectId: 5 },
-          withDeleted: true,
-        }),
-      );
+      expect(ticketRepository.find).toHaveBeenCalledWith({
+        where: { projectId: 5, deletedAt: Not(IsNull()) },
+        withDeleted: true,
+      });
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({ id: 3, projectId: 5 });
     });
@@ -207,11 +205,10 @@ describe('TicketsService soft delete and restore (slice 9)', () => {
   describe('restore (POST /tickets/:ticketId/restore)', () => {
     it('restores a soft-deleted ticket and records RESTORE audit atomically', async () => {
       const restored = mockTicketEntity({ id: 7, deletedAt: null });
-      ticketRepository.findOne.mockResolvedValue(
-        mockTicketEntity({ id: 7, deletedAt: new Date() }),
-      );
+      ticketRepository.findOne
+        .mockResolvedValueOnce(mockTicketEntity({ id: 7, deletedAt: new Date() }))
+        .mockResolvedValueOnce(restored);
       ticketRepository.restore.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
-      ticketRepository.find.mockResolvedValue([restored]);
 
       const result = await service.restore(7, 2);
 
@@ -259,9 +256,9 @@ describe('TicketsService soft delete and restore (slice 9)', () => {
     });
 
     it('rolls back restore when audit record fails', async () => {
-      ticketRepository.findOne.mockResolvedValue(
-        mockTicketEntity({ id: 7, deletedAt: new Date() }),
-      );
+      ticketRepository.findOne
+        .mockResolvedValueOnce(mockTicketEntity({ id: 7, deletedAt: new Date() }))
+        .mockResolvedValueOnce(mockTicketEntity({ id: 7, deletedAt: null }));
       ticketRepository.restore.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
       auditLogService.record.mockRejectedValue(new Error('audit insert failed'));
 

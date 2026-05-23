@@ -132,10 +132,11 @@ describe('Soft delete and restore (e2e)', () => {
           expect(res.body.find((t: { id: number }) => t.id === ticketId)).toBeUndefined();
         });
 
+      const admin = await registerAndLogin(UserRole.ADMIN);
       const deletedList = await request(app.getHttpServer())
         .get('/tickets/deleted')
         .query({ projectId })
-        .set(auth)
+        .set({ Authorization: `Bearer ${admin.token}` })
         .expect(200);
 
       expect(
@@ -144,8 +145,10 @@ describe('Soft delete and restore (e2e)', () => {
     });
 
     it('POST /tickets/:ticketId/restore restores visibility and writes RESTORE audit', async () => {
-      const { token, userId } = await registerAndLogin();
+      const { token, userId } = await registerAndLogin(UserRole.DEVELOPER);
       const auth = { Authorization: `Bearer ${token}` };
+      const admin = await registerAndLogin(UserRole.ADMIN);
+      const adminAuth = { Authorization: `Bearer ${admin.token}` };
 
       const projectRes = await request(app.getHttpServer())
         .post('/projects')
@@ -177,7 +180,7 @@ describe('Soft delete and restore (e2e)', () => {
 
       await request(app.getHttpServer())
         .post(`/tickets/${ticketId}/restore`)
-        .set(auth)
+        .set(adminAuth)
         .expect(200);
 
       await request(app.getHttpServer())
@@ -188,7 +191,7 @@ describe('Soft delete and restore (e2e)', () => {
       const deletedList = await request(app.getHttpServer())
         .get('/tickets/deleted')
         .query({ projectId })
-        .set(auth)
+        .set(adminAuth)
         .expect(200);
 
       expect(
@@ -209,8 +212,9 @@ describe('Soft delete and restore (e2e)', () => {
     });
 
     it('returns 404 when restoring a ticket that is not deleted', async () => {
-      const { token, userId } = await registerAndLogin();
-      const auth = { Authorization: `Bearer ${token}` };
+      const admin = await registerAndLogin(UserRole.ADMIN);
+      const auth = { Authorization: `Bearer ${admin.token}` };
+      const { userId } = admin;
 
       const projectRes = await request(app.getHttpServer())
         .post('/projects')
@@ -277,9 +281,10 @@ describe('Soft delete and restore (e2e)', () => {
         allProjects.body.some((p: { id: number }) => p.id === projectId),
       ).toBe(false);
 
+      const admin = await registerAndLogin(UserRole.ADMIN);
       const deletedList = await request(app.getHttpServer())
         .get('/projects/deleted')
-        .set(auth)
+        .set({ Authorization: `Bearer ${admin.token}` })
         .expect(200);
 
       expect(
@@ -288,8 +293,10 @@ describe('Soft delete and restore (e2e)', () => {
     });
 
     it('POST /projects/:projectId/restore restores project visibility', async () => {
-      const { token, userId } = await registerAndLogin();
+      const { token, userId } = await registerAndLogin(UserRole.DEVELOPER);
       const auth = { Authorization: `Bearer ${token}` };
+      const admin = await registerAndLogin(UserRole.ADMIN);
+      const adminAuth = { Authorization: `Bearer ${admin.token}` };
 
       const projectRes = await request(app.getHttpServer())
         .post('/projects')
@@ -306,7 +313,7 @@ describe('Soft delete and restore (e2e)', () => {
 
       await request(app.getHttpServer())
         .post(`/projects/${projectId}/restore`)
-        .set(auth)
+        .set(adminAuth)
         .expect(200);
 
       await request(app.getHttpServer())
@@ -316,12 +323,60 @@ describe('Soft delete and restore (e2e)', () => {
 
       const deletedList = await request(app.getHttpServer())
         .get('/projects/deleted')
-        .set(auth)
+        .set(adminAuth)
         .expect(200);
 
       expect(
         deletedList.body.some((p: { id: number }) => p.id === projectId),
       ).toBe(false);
+    });
+  });
+
+  describe('ADMIN-only authorization', () => {
+    it('denies DEVELOPER access to deleted/restore ticket endpoints', async () => {
+      const dev = await registerAndLogin(UserRole.DEVELOPER);
+      const auth = { Authorization: `Bearer ${dev.token}` };
+
+      await request(app.getHttpServer())
+        .get('/tickets/deleted')
+        .query({ projectId: 1 })
+        .set(auth)
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .post('/tickets/1/restore')
+        .set(auth)
+        .expect(403);
+    });
+
+    it('denies DEVELOPER access to deleted/restore project endpoints', async () => {
+      const dev = await registerAndLogin(UserRole.DEVELOPER);
+      const auth = { Authorization: `Bearer ${dev.token}` };
+
+      await request(app.getHttpServer())
+        .get('/projects/deleted')
+        .set(auth)
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .post('/projects/1/restore')
+        .set(auth)
+        .expect(403);
+    });
+
+    it('denies unauthenticated access to soft-delete admin endpoints', async () => {
+      await request(app.getHttpServer())
+        .get('/tickets/deleted')
+        .query({ projectId: 1 })
+        .expect(401);
+
+      await request(app.getHttpServer())
+        .post('/tickets/1/restore')
+        .expect(401);
+
+      await request(app.getHttpServer()).get('/projects/deleted').expect(401);
+
+      await request(app.getHttpServer()).post('/projects/1/restore').expect(401);
     });
   });
 });

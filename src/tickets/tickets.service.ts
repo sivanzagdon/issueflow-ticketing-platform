@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -186,6 +186,51 @@ export class TicketsService {
     });
   }
 
+  async findAllDeleted(projectId: number): Promise<TicketResponse[]> {
+    const tickets = await this.ticketRepository.find({
+      where: { projectId, deletedAt: Not(IsNull()) },
+      withDeleted: true,
+    });
+    return tickets.map(toTicketResponse);
+  }
+
+  async restore(id: number, performedBy?: number): Promise<TicketResponse> {
+    return this.dataSource.transaction(async (manager) => {
+      const ticketRepo = manager.getRepository(Ticket);
+      const ticket = await ticketRepo.findOne({
+        where: { id },
+        withDeleted: true,
+      });
+      if (!ticket || ticket.deletedAt == null) {
+        throw new NotFoundException(`Ticket ${id} not found`);
+      }
+
+      const deletedAt = ticket.deletedAt;
+      await ticketRepo.restore({ id });
+      const restored = await ticketRepo.findOne({ where: { id } });
+      if (!restored) {
+        throw new NotFoundException(`Ticket ${id} not found`);
+      }
+
+      await this.auditLogService.record(
+        {
+          action: AuditAction.RESTORE,
+          entityType: AuditEntityType.TICKET,
+          entityId: id,
+          performedBy: performedBy ?? ticket.assigneeId ?? ticket.projectId,
+          actorType: AuditActor.USER,
+          details: {
+            before: { deletedAt: deletedAt.toISOString() },
+            after: { deletedAt: null },
+          },
+        },
+        manager,
+      );
+
+      return toTicketResponse(restored);
+    });
+  }
+
   async remove(id: number, performedBy?: number): Promise<void> {
     const ticket = await this.getTicketOrThrow(id);
 
@@ -245,6 +290,7 @@ export class TicketsService {
     }
     return ticket;
   }
+
 }
 
 export type { TicketResponse, TicketDetailResponse };

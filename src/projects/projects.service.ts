@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -117,6 +117,51 @@ export class ProjectsService {
     });
   }
 
+  async findAllDeleted(): Promise<ProjectResponse[]> {
+    const projects = await this.projectRepository.find({
+      where: { deletedAt: Not(IsNull()) },
+      withDeleted: true,
+    });
+    return projects.map(toProjectResponse);
+  }
+
+  async restore(id: number, performedBy?: number): Promise<ProjectResponse> {
+    return this.dataSource.transaction(async (manager) => {
+      const projectRepo = manager.getRepository(Project);
+      const project = await projectRepo.findOne({
+        where: { id },
+        withDeleted: true,
+      });
+      if (!project || project.deletedAt == null) {
+        throw new NotFoundException(`Project ${id} not found`);
+      }
+
+      const deletedAt = project.deletedAt;
+      await projectRepo.restore({ id });
+      const restored = await projectRepo.findOne({ where: { id } });
+      if (!restored) {
+        throw new NotFoundException(`Project ${id} not found`);
+      }
+
+      await this.auditLogService.record(
+        {
+          action: AuditAction.RESTORE,
+          entityType: AuditEntityType.PROJECT,
+          entityId: id,
+          performedBy: performedBy ?? project.ownerId,
+          actorType: AuditActor.USER,
+          details: {
+            before: { deletedAt: deletedAt.toISOString() },
+            after: { deletedAt: null },
+          },
+        },
+        manager,
+      );
+
+      return toProjectResponse(restored);
+    });
+  }
+
   async remove(id: number, performedBy?: number): Promise<void> {
     const project = await this.getProjectOrThrow(id);
 
@@ -142,4 +187,5 @@ export class ProjectsService {
     }
     return project;
   }
+
 }
