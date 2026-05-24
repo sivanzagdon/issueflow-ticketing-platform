@@ -13,6 +13,7 @@ import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
 import { TicketPriority } from '../common/enums/ticket-priority.enum';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
 import { TicketType } from '../common/enums/ticket-type.enum';
+import { pickLeastLoadedAssigneeId } from '../projects/project-workload';
 import { ProjectsService } from '../projects/projects.service';
 import { UsersService } from '../users/users.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
@@ -74,9 +75,19 @@ export class TicketsService {
   ): Promise<TicketResponse> {
     await this.projectsService.findOne(createTicketDto.projectId);
 
-    if (createTicketDto.assigneeId != null) {
-      await this.usersService.findOne(createTicketDto.assigneeId);
+    const explicitAssignee = createTicketDto.assigneeId != null;
+    let assigneeId = createTicketDto.assigneeId ?? null;
+
+    if (explicitAssignee) {
+      await this.usersService.findOne(assigneeId!);
+    } else {
+      const workload = await this.projectsService.getProjectWorkload(
+        createTicketDto.projectId,
+      );
+      assigneeId = pickLeastLoadedAssigneeId(workload);
     }
+
+    const autoAssigned = !explicitAssignee && assigneeId != null;
 
     return this.dataSource.transaction(async (manager) => {
       const ticketRepo = manager.getRepository(Ticket);
@@ -87,7 +98,7 @@ export class TicketsService {
         priority: createTicketDto.priority,
         type: createTicketDto.type,
         projectId: createTicketDto.projectId,
-        assigneeId: createTicketDto.assigneeId ?? null,
+        assigneeId,
         dueDate: createTicketDto.dueDate
           ? new Date(createTicketDto.dueDate)
           : null,
@@ -100,10 +111,7 @@ export class TicketsService {
           action: AuditAction.CREATE,
           entityType: AuditEntityType.TICKET,
           entityId: saved.id,
-          performedBy:
-            performedBy ??
-            createTicketDto.assigneeId ??
-            createTicketDto.projectId,
+          performedBy: performedBy ?? assigneeId ?? createTicketDto.projectId,
           actorType: AuditActor.USER,
           details: {
             title: saved.title,
@@ -116,6 +124,23 @@ export class TicketsService {
         },
         manager,
       );
+
+      if (autoAssigned) {
+        await this.auditLogService.record(
+          {
+            action: AuditAction.AUTO_ASSIGN,
+            entityType: AuditEntityType.TICKET,
+            entityId: saved.id,
+            performedBy: null,
+            actorType: AuditActor.SYSTEM,
+            details: {
+              assignedTo: saved.assigneeId,
+              reason: 'least workload',
+            },
+          },
+          manager,
+        );
+      }
 
       return toTicketResponse(saved);
     });

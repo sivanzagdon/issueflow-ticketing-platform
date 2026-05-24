@@ -19,6 +19,7 @@ import { Project } from '../projects/entities/project.entity';
 import { ProjectsService } from '../projects/projects.service';
 import { mockProjectEntity } from '../projects/testing/project.fixtures';
 import { mockProjectResponse } from '../projects/testing/project.fixtures';
+import { projectsServiceWorkloadRepositoryProviders } from '../projects/testing/projects-service-test.providers';
 import { Ticket } from '../tickets/entities/ticket.entity';
 import { ticketAttachmentRepositoryProvider } from '../tickets/testing/attachment.fixtures';
 import { ticketDependencyRepositoryProvider } from '../tickets/testing/dependency.fixtures';
@@ -138,6 +139,7 @@ describe('Audit log domain write integration (contract)', () => {
         providers: [
           ProjectsService,
           { provide: getRepositoryToken(Project), useValue: projectRepository },
+          ...projectsServiceWorkloadRepositoryProviders(),
           {
             provide: UsersService,
             useValue: { findOne: jest.fn().mockResolvedValue(mockUserResponse()) },

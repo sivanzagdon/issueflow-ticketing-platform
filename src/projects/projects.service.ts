@@ -5,19 +5,30 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
 import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
+import { Ticket } from '../tickets/entities/ticket.entity';
+import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
-import { ProjectResponse, toProjectResponse } from './projects.mapper';
+import { buildProjectWorkload } from './project-workload';
+import {
+  ProjectResponse,
+  ProjectWorkloadEntry,
+  toProjectResponse,
+} from './projects.mapper';
 
-export type { ProjectResponse };
+export type { ProjectResponse, ProjectWorkloadEntry };
 
 @Injectable()
 export class ProjectsService {
   constructor(
     @InjectRepository(Project)
     private readonly projectRepository: Repository<Project>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Ticket)
+    private readonly ticketRepository: Repository<Ticket>,
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
@@ -65,6 +76,15 @@ export class ProjectsService {
   async findOne(id: number): Promise<ProjectResponse> {
     const project = await this.getProjectOrThrow(id);
     return toProjectResponse(project);
+  }
+
+  async getProjectWorkload(projectId: number): Promise<ProjectWorkloadEntry[]> {
+    await this.getProjectOrThrow(projectId);
+    return buildProjectWorkload(
+      this.userRepository,
+      this.ticketRepository,
+      projectId,
+    );
   }
 
   async update(

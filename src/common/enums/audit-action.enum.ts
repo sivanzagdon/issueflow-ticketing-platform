@@ -3,4 +3,5 @@ export enum AuditAction {
   UPDATE = 'UPDATE',
   DELETE = 'DELETE',
   RESTORE = 'RESTORE',
+  AUTO_ASSIGN = 'AUTO_ASSIGN',
 }

@@ -1,5 +1,6 @@
-import { UserRole } from '../../common/enums/user-role.enum';
+import { AuditAction } from '../../common/enums/audit-action.enum';
 import { AuditActor } from '../../common/enums/audit-actor.enum';
+import { UserRole } from '../../common/enums/user-role.enum';
 import { User } from '../../users/entities/user.entity';
 import { mockUserEntity } from '../../users/testing/user.fixtures';
 
@@ -10,8 +11,8 @@ export type ProjectWorkloadEntry = {
   openTicketCount: number;
 };
 
-/** Slice 15 — AUTO_ASSIGN audit action (enum added during implementation). */
-export const AUDIT_ACTION_AUTO_ASSIGN = 'AUTO_ASSIGN' as const;
+/** README Slice 15 — system auto-assignment audit action. */
+export const AUDIT_ACTION_AUTO_ASSIGN = AuditAction.AUTO_ASSIGN;
 
 export const mockWorkloadEntry = (
   overrides: Partial<ProjectWorkloadEntry> = {},

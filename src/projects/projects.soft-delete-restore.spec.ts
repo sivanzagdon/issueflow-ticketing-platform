@@ -14,6 +14,7 @@ import { UsersService } from '../users/users.service';
 import { mockUserResponse } from '../users/testing/user.fixtures';
 import { Project } from './entities/project.entity';
 import { ProjectsService } from './projects.service';
+import { projectsServiceWorkloadRepositoryProviders } from './testing/projects-service-test.providers';
 import { mockProjectEntity } from './testing/project.fixtures';
 
 type ProjectsServiceSlice9 = ProjectsService & {
@@ -59,6 +60,7 @@ describe('ProjectsService soft delete and restore (slice 9)', () => {
       providers: [
         ProjectsService,
         { provide: getRepositoryToken(Project), useValue: projectRepository },
+        ...projectsServiceWorkloadRepositoryProviders(),
         {
           provide: UsersService,
           useValue: { findOne: jest.fn().mockResolvedValue(mockUserResponse()) },

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { mockAuditLogResponse } from '../audit-log/testing/audit-log.fixtures';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
 import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
@@ -153,7 +154,7 @@ describe('TicketsService auto-assignment audit (Slice 15)', () => {
   it('marks assignment failed when AUTO_ASSIGN audit write fails', async () => {
     const ticketRepo = transactionalTicketRepo();
     auditLogService.record
-      .mockResolvedValueOnce({ id: 1 })
+      .mockResolvedValueOnce(mockAuditLogResponse({ id: 1 }))
       .mockRejectedValueOnce(new Error('audit failed'));
 
     transactionalManager.getRepository = jest.fn((entity: unknown) => {

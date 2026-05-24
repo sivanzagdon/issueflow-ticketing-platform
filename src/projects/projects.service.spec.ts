@@ -14,6 +14,7 @@ import {
   mockProjectResponse,
 } from './testing/project.fixtures';
 import { ProjectsService } from './projects.service';
+import { projectsServiceWorkloadRepositoryProviders } from './testing/projects-service-test.providers';
 
 describe('ProjectsService', () => {
   let service: ProjectsService;
@@ -43,6 +44,7 @@ describe('ProjectsService', () => {
       providers: [
         ProjectsService,
         { provide: getRepositoryToken(Project), useValue: projectRepository },
+        ...projectsServiceWorkloadRepositoryProviders(),
         { provide: UsersService, useValue: usersService },
         {
           provide: AuditLogService,

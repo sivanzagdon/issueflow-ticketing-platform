@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { resetDatabase } from './helpers/reset-database';
 import { AuditAction } from '../src/common/enums/audit-action.enum';
 import { AuditActor } from '../src/common/enums/audit-actor.enum';
 import { TicketPriority } from '../src/common/enums/ticket-priority.enum';
@@ -36,6 +37,7 @@ describe('Auto-assignment and workload (e2e)', () => {
       }),
     );
     await app.init();
+    await resetDatabase(app);
   });
 
   afterEach(async () => {

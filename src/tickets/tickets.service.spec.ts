@@ -34,7 +34,9 @@ describe('TicketsService', () => {
   let service: TicketsService;
   let ticketRepository: jest.Mocked<Repository<Ticket>>;
   let dependencyRepository: ReturnType<typeof createMockDependencyRepository>;
-  let projectsService: jest.Mocked<Pick<ProjectsService, 'findOne'>>;
+  let projectsService: jest.Mocked<
+    Pick<ProjectsService, 'findOne' | 'getProjectWorkload'>
+  >;
   let usersService: jest.Mocked<Pick<UsersService, 'findOne'>>;
 
   const baseCreateDto: CreateTicketDto = {
@@ -58,7 +60,10 @@ describe('TicketsService', () => {
     } as unknown as jest.Mocked<Repository<Ticket>>;
 
     dependencyRepository = createMockDependencyRepository();
-    projectsService = { findOne: jest.fn() };
+    projectsService = {
+      findOne: jest.fn(),
+      getProjectWorkload: jest.fn().mockResolvedValue([]),
+    };
     usersService = { findOne: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -109,18 +114,21 @@ describe('TicketsService', () => {
       expect(result.version).toBeDefined();
     });
 
-    it('creates ticket without assignee when assigneeId is omitted', async () => {
+    it('creates ticket without assignee when assigneeId is omitted and no developers exist', async () => {
       const { assigneeId: _a, ...dto } = baseCreateDto;
       const entity = mockTicketEntity({ assigneeId: null });
       projectsService.findOne.mockResolvedValue(mockProjectResponse());
+      projectsService.getProjectWorkload.mockResolvedValue([]);
       ticketRepository.create.mockReturnValue(entity);
       ticketRepository.save.mockResolvedValue(entity);
 
       await service.create(dto as CreateTicketDto);
 
       expect(usersService.findOne).not.toHaveBeenCalled();
-      expect(ticketRepository.create).toHaveBeenCalled();
-      expect(ticketRepository.save).toHaveBeenCalled();
+      expect(projectsService.getProjectWorkload).toHaveBeenCalledWith(dto.projectId);
+      expect(ticketRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ assigneeId: null }),
+      );
     });
 
     it('rejects create when project does not exist with NotFoundException', async () => {

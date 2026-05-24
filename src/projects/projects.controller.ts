@@ -57,6 +57,12 @@ export class ProjectsController {
     return this.projectsService.restore(projectId, req.user.id);
   }
 
+  @Get(':projectId/workload')
+  @HttpCode(HttpStatus.OK)
+  getProjectWorkload(@Param('projectId', ParseIntPipe) projectId: number) {
+    return this.projectsService.getProjectWorkload(projectId);
+  }
+
   @Get(':projectId')
   findOne(@Param('projectId', ParseIntPipe) projectId: number) {
     return this.projectsService.findOne(projectId);

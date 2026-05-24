@@ -5,6 +5,13 @@ export type ProjectResponse = Pick<
   'id' | 'name' | 'description' | 'ownerId'
 >;
 
+/** README GET /projects/:projectId/workload entry. */
+export type ProjectWorkloadEntry = {
+  userId: number;
+  username: string;
+  openTicketCount: number;
+};
+
 export function toProjectResponse(project: Project): ProjectResponse {
   return {
     id: project.id,
