@@ -1596,7 +1596,7 @@ GET /projects/:projectId/workload
 - no overengineering
 
 ## Slice 16 — Ticket Auto Escalation
-Status: Planned
+Status: Completed
 
 ### Goal
 Implement automatic priority escalation for overdue tickets with `dueDate`.

@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { parse } from 'csv-parse/sync';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AuditEntityType } from '../src/common/enums/audit-entity-type.enum';
@@ -265,8 +266,15 @@ describe('Ticket import/export (e2e)', () => {
         .expect(200);
 
       const csv = res.text as string;
-      expect(csv).toContain(String(activeId));
-      expect(csv).not.toContain(String(deletedId));
+      const rows = parse(csv, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+      }) as { id: string }[];
+      const exportedIds = rows.map((row) => Number(row.id));
+
+      expect(exportedIds).toContain(activeId);
+      expect(exportedIds).not.toContain(deletedId);
     });
   });
 
