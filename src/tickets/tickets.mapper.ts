@@ -1,6 +1,14 @@
 import { TicketStateHistoryEntry } from '../audit-log/audit-log.types';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
+import { TicketAttachment } from './entities/ticket-attachment.entity';
 import { Ticket } from './entities/ticket.entity';
+
+export type TicketAttachmentResponse = {
+  id: number;
+  ticketId: number;
+  filename: string;
+  contentType: string;
+};
 
 export type TicketBlockerSummary = {
   id: number;
@@ -26,6 +34,17 @@ export type TicketResponse = Pick<
 export type TicketDetailResponse = TicketResponse & {
   stateHistory: TicketStateHistoryEntry[];
 };
+
+export function toAttachmentResponse(
+  attachment: TicketAttachment,
+): TicketAttachmentResponse {
+  return {
+    id: attachment.id,
+    ticketId: attachment.ticketId,
+    filename: attachment.filename,
+    contentType: attachment.contentType,
+  };
+}
 
 export function toTicketResponse(ticket: Ticket): TicketResponse {
   return {

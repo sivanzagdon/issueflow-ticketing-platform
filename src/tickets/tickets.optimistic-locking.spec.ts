@@ -19,6 +19,7 @@ import { mockProjectResponse } from '../projects/testing/project.fixtures';
 import { UsersService } from '../users/users.service';
 import { Ticket } from './entities/ticket.entity';
 import { mockTicketEntity } from './testing/ticket.fixtures';
+import { ticketAttachmentRepositoryProvider } from './testing/attachment.fixtures';
 import { ticketDependencyRepositoryProvider } from './testing/dependency.fixtures';
 import { TicketsService } from './tickets.service';
 
@@ -61,6 +62,7 @@ describe('TicketsService optimistic locking (Slice 10)', () => {
         TicketsService,
         { provide: getRepositoryToken(Ticket), useValue: ticketRepository },
         ticketDependencyRepositoryProvider(),
+        ticketAttachmentRepositoryProvider(),
         {
           provide: ProjectsService,
           useValue: { findOne: jest.fn().mockResolvedValue(mockProjectResponse()) },

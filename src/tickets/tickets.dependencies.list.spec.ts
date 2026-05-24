@@ -11,6 +11,7 @@ import { mockProjectResponse } from '../projects/testing/project.fixtures';
 import { mockUserResponse } from '../users/testing/user.fixtures';
 import { Ticket } from './entities/ticket.entity';
 import { mockTicketEntity } from './testing/ticket.fixtures';
+import { ticketAttachmentRepositoryProvider } from './testing/attachment.fixtures';
 import {
   createMockDependencyRepository,
   expectTicketBlockerListShape,
@@ -39,6 +40,7 @@ describe('TicketsService getDependencies (Slice 12)', () => {
           provide: getRepositoryToken(TicketDependencyEntityStub),
           useValue: dependencyRepository,
         },
+        ticketAttachmentRepositoryProvider(),
         {
           provide: ProjectsService,
           useValue: { findOne: jest.fn().mockResolvedValue(mockProjectResponse()) },

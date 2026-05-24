@@ -22,6 +22,7 @@ import {
   expectTicketAttachmentResponseShape,
   mockAttachmentEntity,
   mockAttachmentResponse,
+  mockUploadFile,
   TicketAttachmentEntityStub,
   TicketsServiceSlice13,
 } from './testing/attachment.fixtures';
@@ -40,10 +41,7 @@ describe('TicketsService createAttachment (Slice 13)', () => {
     typeof createMockTransactionalContext
   >['manager'];
 
-  const createDto = {
-    filename: 'screenshot.png',
-    contentType: 'image/png',
-  };
+  const uploadFile = mockUploadFile();
 
   beforeEach(async () => {
     ticketRepository = { findOne: jest.fn() };
@@ -98,12 +96,12 @@ describe('TicketsService createAttachment (Slice 13)', () => {
       mockAttachmentEntity({
         id: 1,
         ticketId: 12,
-        filename: createDto.filename,
-        contentType: createDto.contentType,
+        filename: uploadFile.originalname,
+        contentType: uploadFile.mimetype,
       }),
     );
 
-    await service.createAttachment(12, createDto, 2);
+    await service.createAttachment(12, uploadFile, 2);
 
     expect(attachmentRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -126,7 +124,7 @@ describe('TicketsService createAttachment (Slice 13)', () => {
       }),
     );
 
-    const result = await service.createAttachment(12, createDto, 2);
+    const result = await service.createAttachment(12, uploadFile, 2);
 
     expectTicketAttachmentResponseShape(result);
     expect(result).toEqual(mockAttachmentResponse({ id: 7, ticketId: 12 }));
@@ -145,8 +143,9 @@ describe('TicketsService createAttachment (Slice 13)', () => {
         mockAttachmentEntity({ id: 2, ticketId: 12, filename: 'dup.png' }),
       );
 
-    await service.createAttachment(12, { filename: 'dup.png', contentType: 'image/png' }, 2);
-    await service.createAttachment(12, { filename: 'dup.png', contentType: 'image/png' }, 2);
+    const dupFile = mockUploadFile({ originalname: 'dup.png', mimetype: 'image/png' });
+    await service.createAttachment(12, dupFile, 2);
+    await service.createAttachment(12, dupFile, 2);
 
     expect(attachmentRepository.save).toHaveBeenCalledTimes(2);
   });
@@ -157,7 +156,7 @@ describe('TicketsService createAttachment (Slice 13)', () => {
       mockAttachmentEntity({ id: 1, ticketId: 12 }),
     );
 
-    await service.createAttachment(12, createDto, 2);
+    await service.createAttachment(12, uploadFile, 2);
 
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
   });
@@ -168,7 +167,7 @@ describe('TicketsService createAttachment (Slice 13)', () => {
       mockAttachmentEntity({ id: 99, ticketId: 12, filename: 'screenshot.png' }),
     );
 
-    await service.createAttachment(12, createDto, 2);
+    await service.createAttachment(12, uploadFile, 2);
 
     expectTransactionalAuditCall(auditLogService, transactionalManager, {
       action: AuditAction.CREATE,
@@ -188,7 +187,7 @@ describe('TicketsService createAttachment (Slice 13)', () => {
   it('fails with NotFoundException when ticket does not exist', async () => {
     ticketRepository.findOne.mockResolvedValue(null);
 
-    await expect(service.createAttachment(99, createDto, 2)).rejects.toBeInstanceOf(
+    await expect(service.createAttachment(99, uploadFile, 2)).rejects.toBeInstanceOf(
       NotFoundException,
     );
     expect(attachmentRepository.save).not.toHaveBeenCalled();
@@ -199,7 +198,7 @@ describe('TicketsService createAttachment (Slice 13)', () => {
       mockTicketEntity({ id: 12, deletedAt: new Date() }),
     );
 
-    await expect(service.createAttachment(12, createDto, 2)).rejects.toBeInstanceOf(
+    await expect(service.createAttachment(12, uploadFile, 2)).rejects.toBeInstanceOf(
       BadRequestException,
     );
     expect(attachmentRepository.save).not.toHaveBeenCalled();
@@ -212,7 +211,7 @@ describe('TicketsService createAttachment (Slice 13)', () => {
     );
     auditLogService.record.mockRejectedValue(new Error('audit insert failed'));
 
-    await expect(service.createAttachment(12, createDto, 2)).rejects.toThrow(
+    await expect(service.createAttachment(12, uploadFile, 2)).rejects.toThrow(
       'audit insert failed',
     );
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
@@ -221,7 +220,7 @@ describe('TicketsService createAttachment (Slice 13)', () => {
   it('does not write audit when ticket validation fails', async () => {
     ticketRepository.findOne.mockResolvedValue(null);
 
-    await expect(service.createAttachment(99, createDto, 2)).rejects.toBeInstanceOf(
+    await expect(service.createAttachment(99, uploadFile, 2)).rejects.toBeInstanceOf(
       NotFoundException,
     );
     expect(auditLogService.record).not.toHaveBeenCalled();

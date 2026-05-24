@@ -4,6 +4,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
 import { AuthModule } from '../auth/auth.module';
 import { ProjectsModule } from '../projects/projects.module';
 import { UsersModule } from '../users/users.module';
+import { TicketAttachment } from './entities/ticket-attachment.entity';
 import { TicketDependency } from './entities/ticket-dependency.entity';
 import { Ticket } from './entities/ticket.entity';
 import { TicketsController } from './tickets.controller';
@@ -11,7 +12,7 @@ import { TicketsService } from './tickets.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Ticket, TicketDependency]),
+    TypeOrmModule.forFeature([Ticket, TicketDependency, TicketAttachment]),
     AuthModule,
     ProjectsModule,
     UsersModule,

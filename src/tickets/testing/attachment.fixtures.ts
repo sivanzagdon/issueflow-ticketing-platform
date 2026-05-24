@@ -1,14 +1,8 @@
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { TicketAttachment } from '../entities/ticket-attachment.entity';
 
-/** Test-only stand-in until production TicketAttachment entity exists (Slice 13). */
-export class TicketAttachmentEntityStub {
-  id!: number;
-  ticketId!: number;
-  filename!: string;
-  contentType!: string;
-  createdAt!: Date;
-  deletedAt!: Date | null;
-}
+/** Alias used by Slice 13 specs — production entity is TicketAttachment. */
+export { TicketAttachment as TicketAttachmentEntityStub };
 
 /** README attachment response shape. */
 export type TicketAttachmentResponse = {
@@ -23,16 +17,17 @@ export type TicketAttachmentList = TicketAttachmentResponse[];
 export const AUDIT_ENTITY_TICKET_ATTACHMENT = 'TICKET_ATTACHMENT';
 
 export const mockAttachmentEntity = (
-  overrides: Partial<TicketAttachmentEntityStub> = {},
-): TicketAttachmentEntityStub => ({
-  id: 1,
-  ticketId: 12,
-  filename: 'screenshot.png',
-  contentType: 'image/png',
-  createdAt: new Date('2026-01-01T12:00:00.000Z'),
-  deletedAt: null,
-  ...overrides,
-});
+  overrides: Partial<TicketAttachment> = {},
+): TicketAttachment =>
+  ({
+    id: 1,
+    ticketId: 12,
+    filename: 'screenshot.png',
+    contentType: 'image/png',
+    createdAt: new Date('2026-01-01T12:00:00.000Z'),
+    deletedAt: null,
+    ...overrides,
+  }) as TicketAttachment;
 
 export const mockAttachmentResponse = (
   overrides: Partial<TicketAttachmentResponse> = {},
@@ -47,6 +42,19 @@ export const mockAttachmentResponse = (
 export const mockAttachmentList = (
   items: TicketAttachmentResponse[] = [mockAttachmentResponse()],
 ): TicketAttachmentList => items;
+
+export const mockUploadFile = (
+  overrides: Partial<Express.Multer.File> = {},
+): Express.Multer.File =>
+  ({
+    fieldname: 'file',
+    originalname: 'screenshot.png',
+    encoding: '7bit',
+    mimetype: 'image/png',
+    size: 128,
+    buffer: Buffer.from('test-file'),
+    ...overrides,
+  }) as Express.Multer.File;
 
 export function expectTicketAttachmentResponseShape(
   body: TicketAttachmentResponse,
@@ -80,7 +88,7 @@ export function ticketAttachmentRepositoryProvider(): {
   useValue: ReturnType<typeof createMockAttachmentRepository>;
 } {
   return {
-    provide: getRepositoryToken(TicketAttachmentEntityStub),
+    provide: getRepositoryToken(TicketAttachment),
     useValue: createMockAttachmentRepository(),
   };
 }
@@ -108,11 +116,11 @@ export function createMockAttachmentRepository(): {
   };
 }
 
-/** Slice 13 service surface — not implemented yet. */
+/** Slice 13 service surface. */
 export type TicketsServiceSlice13 = import('../tickets.service').TicketsService & {
   createAttachment(
     ticketId: number,
-    dto: { filename: string; contentType: string },
+    file: Express.Multer.File,
     performedBy?: number,
   ): Promise<TicketAttachmentResponse>;
   getAttachments(ticketId: number): Promise<TicketAttachmentList>;

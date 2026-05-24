@@ -18,6 +18,7 @@ import {
   AUDIT_ENTITY_TICKET_ATTACHMENT,
   createMockAttachmentRepository,
   mockAttachmentEntity,
+  mockUploadFile,
   TicketAttachmentEntityStub,
   TicketsServiceSlice13,
 } from './testing/attachment.fixtures';
@@ -114,11 +115,7 @@ describe('TicketsService attachments — transaction and audit (Slice 13)', () =
         );
       });
 
-      await service.createAttachment(
-        12,
-        { filename: 'a.png', contentType: 'image/png' },
-        2,
-      );
+      await service.createAttachment(12, mockUploadFile({ originalname: 'a.png' }), 2);
 
       expect(transactionalManager.getRepository).toHaveBeenCalledWith(Ticket);
       expect(transactionalManager.getRepository).toHaveBeenCalledWith(
@@ -142,7 +139,7 @@ describe('TicketsService attachments — transaction and audit (Slice 13)', () =
 
       await service.createAttachment(
         12,
-        { filename: 'z.png', contentType: 'image/png' },
+        mockUploadFile({ originalname: 'z.png' }),
         2,
       );
 
@@ -157,7 +154,7 @@ describe('TicketsService attachments — transaction and audit (Slice 13)', () =
 
       await service.createAttachment(
         12,
-        { filename: 'one.png', contentType: 'image/png' },
+        mockUploadFile({ originalname: 'one.png' }),
         2,
       );
 

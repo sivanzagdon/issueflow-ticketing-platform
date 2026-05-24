@@ -7,6 +7,7 @@ import { TicketPriority } from '../src/common/enums/ticket-priority.enum';
 import { TicketStatus } from '../src/common/enums/ticket-status.enum';
 import { TicketType } from '../src/common/enums/ticket-type.enum';
 import { UserRole } from '../src/common/enums/user-role.enum';
+import { TICKET_ATTACHMENT_MAX_FILE_SIZE } from '../src/tickets/ticket-attachment-upload.config';
 import {
   AUDIT_ENTITY_TICKET_ATTACHMENT,
   expectTicketAttachmentListShape,
@@ -14,7 +15,7 @@ import {
 } from '../src/tickets/testing/attachment.fixtures';
 
 /**
- * Slice 13 e2e — ticket attachment metadata lifecycle (README contract).
+ * Slice 13 e2e — ticket attachment multipart upload (README contract).
  * Requires PostgreSQL — see run.md.
  */
 describe('Ticket attachments (e2e)', () => {
@@ -22,6 +23,14 @@ describe('Ticket attachments (e2e)', () => {
 
   const uniqueSuffix = () =>
     `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+  const attachFile = (
+    req: request.Test,
+    filename: string,
+    contentType: string,
+    content: Buffer | string = Buffer.from('file-content'),
+  ) =>
+    req.attach('file', content, { filename, contentType });
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -102,16 +111,18 @@ describe('Ticket attachments (e2e)', () => {
   }
 
   describe('attachment lifecycle', () => {
-    it('creates metadata, lists attachments sorted by id, and deletes one', async () => {
+    it('uploads file via multipart, lists attachments sorted by id, and deletes one', async () => {
       const { token, userId } = await registerAndLogin();
       const auth = { Authorization: `Bearer ${token}` };
       const { ticketId } = await createProjectAndTicket(token, userId);
 
-      const createRes = await request(app.getHttpServer())
-        .post(`/tickets/${ticketId}/attachments`)
-        .set(auth)
-        .send({ filename: 'first.png', contentType: 'image/png' })
-        .expect(201);
+      const createRes = await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketId}/attachments`)
+          .set(auth),
+        'first.png',
+        'image/png',
+      ).expect(200);
 
       expectTicketAttachmentResponseShape(createRes.body);
       expect(createRes.body).toEqual(
@@ -123,11 +134,13 @@ describe('Ticket attachments (e2e)', () => {
       );
       const firstId = createRes.body.id as number;
 
-      const secondRes = await request(app.getHttpServer())
-        .post(`/tickets/${ticketId}/attachments`)
-        .set(auth)
-        .send({ filename: 'first.png', contentType: 'image/png' })
-        .expect(201);
+      const secondRes = await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketId}/attachments`)
+          .set(auth),
+        'first.png',
+        'image/png',
+      ).expect(200);
 
       expect(secondRes.body.filename).toBe('first.png');
       const secondId = secondRes.body.id as number;
@@ -174,11 +187,13 @@ describe('Ticket attachments (e2e)', () => {
         .set(auth)
         .expect(200);
 
-      await request(app.getHttpServer())
-        .post(`/tickets/${ticketId}/attachments`)
-        .set(auth)
-        .send({ filename: 'late.png', contentType: 'image/png' })
-        .expect(400);
+      await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketId}/attachments`)
+          .set(auth),
+        'late.png',
+        'image/png',
+      ).expect(400);
     });
 
     it('rejects unknown attachment id on delete', async () => {
@@ -192,7 +207,38 @@ describe('Ticket attachments (e2e)', () => {
         .expect(404);
     });
 
-    it('rejects extra multipart-style fields on create', async () => {
+    it('rejects disallowed mime types', async () => {
+      const { token, userId } = await registerAndLogin();
+      const auth = { Authorization: `Bearer ${token}` };
+      const { ticketId } = await createProjectAndTicket(token, userId);
+
+      await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketId}/attachments`)
+          .set(auth),
+        'animation.gif',
+        'image/gif',
+      ).expect(400);
+    });
+
+    it('rejects files larger than 10 MB', async () => {
+      const { token, userId } = await registerAndLogin();
+      const auth = { Authorization: `Bearer ${token}` };
+      const { ticketId } = await createProjectAndTicket(token, userId);
+
+      const oversized = Buffer.alloc(TICKET_ATTACHMENT_MAX_FILE_SIZE + 1, 1);
+
+      await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketId}/attachments`)
+          .set(auth),
+        'huge.png',
+        'image/png',
+        oversized,
+      ).expect(400);
+    });
+
+    it('rejects JSON body instead of multipart file', async () => {
       const { token, userId } = await registerAndLogin();
       const auth = { Authorization: `Bearer ${token}` };
       const { ticketId } = await createProjectAndTicket(token, userId);
@@ -200,11 +246,7 @@ describe('Ticket attachments (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/tickets/${ticketId}/attachments`)
         .set(auth)
-        .send({
-          filename: 'x.png',
-          contentType: 'image/png',
-          file: 'should-not-be-here',
-        })
+        .send({ filename: 'x.png', contentType: 'image/png' })
         .expect(400);
     });
   });
@@ -216,11 +258,13 @@ describe('Ticket attachments (e2e)', () => {
       const { ticketId: ticketA } = await createProjectAndTicket(token, userId, 'A');
       const { ticketId: ticketB } = await createProjectAndTicket(token, userId, 'B');
 
-      await request(app.getHttpServer())
-        .post(`/tickets/${ticketA}/attachments`)
-        .set(auth)
-        .send({ filename: 'only-a.png', contentType: 'image/png' })
-        .expect(201);
+      await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketA}/attachments`)
+          .set(auth),
+        'only-a.png',
+        'image/png',
+      ).expect(200);
 
       const listB = await request(app.getHttpServer())
         .get(`/tickets/${ticketB}/attachments`)
@@ -236,11 +280,13 @@ describe('Ticket attachments (e2e)', () => {
       const { ticketId: ticketA } = await createProjectAndTicket(token, userId, 'A');
       const { ticketId: ticketB } = await createProjectAndTicket(token, userId, 'B');
 
-      const created = await request(app.getHttpServer())
-        .post(`/tickets/${ticketA}/attachments`)
-        .set(auth)
-        .send({ filename: 'a.png', contentType: 'image/png' })
-        .expect(201);
+      const created = await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketA}/attachments`)
+          .set(auth),
+        'a.png',
+        'image/png',
+      ).expect(200);
 
       const attachmentId = created.body.id as number;
 
@@ -264,11 +310,13 @@ describe('Ticket attachments (e2e)', () => {
       const auth = { Authorization: `Bearer ${token}` };
       const { ticketId } = await createProjectAndTicket(token, userId);
 
-      const created = await request(app.getHttpServer())
-        .post(`/tickets/${ticketId}/attachments`)
-        .set(auth)
-        .send({ filename: 'audit-me.pdf', contentType: 'application/pdf' })
-        .expect(201);
+      const created = await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketId}/attachments`)
+          .set(auth),
+        'audit-me.pdf',
+        'application/pdf',
+      ).expect(200);
 
       const attachmentId = created.body.id as number;
 
@@ -325,21 +373,26 @@ describe('Ticket attachments (e2e)', () => {
       );
     });
 
-    it('does not write attachment audit when create fails validation', async () => {
+    it('does not write attachment audit when upload validation fails', async () => {
       const { token, userId } = await registerAndLogin();
       const auth = { Authorization: `Bearer ${token}` };
       const { ticketId } = await createProjectAndTicket(token, userId);
 
-      await request(app.getHttpServer())
-        .post(`/tickets/${ticketId}/attachments`)
-        .set(auth)
-        .send({ filename: '' })
-        .expect(400);
+      await attachFile(
+        request(app.getHttpServer())
+          .post(`/tickets/${ticketId}/attachments`)
+          .set(auth),
+        'bad.gif',
+        'image/gif',
+      ).expect(400);
 
       const auditRes = await request(app.getHttpServer())
         .get('/audit-logs')
         .set(auth)
-        .query({ entityType: AUDIT_ENTITY_TICKET_ATTACHMENT })
+        .query({
+          entityType: AUDIT_ENTITY_TICKET_ATTACHMENT,
+          performedBy: userId,
+        })
         .expect(200);
 
       expect(auditRes.body).toEqual([]);

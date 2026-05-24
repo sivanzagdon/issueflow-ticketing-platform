@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -133,13 +133,14 @@ describe('TicketsService removeAttachment (Slice 13)', () => {
 
   it('requires attachment to belong to the ticket', async () => {
     ticketRepository.findOne.mockResolvedValue(activeTicket(12));
-    attachmentRepository.findOne.mockResolvedValue(
-      mockAttachmentEntity({ id: 5, ticketId: 99 }),
-    );
+    attachmentRepository.findOne.mockResolvedValue(null);
 
     await expect(service.removeAttachment(12, 5, 2)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+    expect(attachmentRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 5, ticketId: 12, deletedAt: IsNull() },
+    });
     expect(attachmentRepository.softDelete).not.toHaveBeenCalled();
   });
 

@@ -21,6 +21,7 @@ import {
   mockProjectResponse,
 } from '../projects/testing/project.fixtures';
 import { Ticket } from '../tickets/entities/ticket.entity';
+import { ticketAttachmentRepositoryProvider } from '../tickets/testing/attachment.fixtures';
 import { ticketDependencyRepositoryProvider } from '../tickets/testing/dependency.fixtures';
 import { TicketsService } from '../tickets/tickets.service';
 import { mockTicketEntity } from '../tickets/testing/ticket.fixtures';
@@ -314,6 +315,7 @@ describe('Audit log domain transactional writes (contract)', () => {
           TicketsService,
           { provide: getRepositoryToken(Ticket), useValue: ticketRepository },
           ticketDependencyRepositoryProvider(),
+          ticketAttachmentRepositoryProvider(),
           {
             provide: ProjectsService,
             useValue: { findOne: jest.fn().mockResolvedValue(mockProjectResponse()) },

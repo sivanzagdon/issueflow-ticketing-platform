@@ -15,12 +15,15 @@ import { ProjectsService } from '../projects/projects.service';
 import { UsersService } from '../users/users.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { TicketAttachment } from './entities/ticket-attachment.entity';
 import { TicketDependency } from './entities/ticket-dependency.entity';
 import { Ticket } from './entities/ticket.entity';
 import {
+  TicketAttachmentResponse,
   TicketBlockerSummary,
   TicketDetailResponse,
   TicketResponse,
+  toAttachmentResponse,
   toTicketResponse,
 } from './tickets.mapper';
 
@@ -46,6 +49,8 @@ export class TicketsService {
     private readonly ticketRepository: Repository<Ticket>,
     @InjectRepository(TicketDependency)
     private readonly ticketDependencyRepository: Repository<TicketDependency>,
+    @InjectRepository(TicketAttachment)
+    private readonly ticketAttachmentRepository: Repository<TicketAttachment>,
     private readonly projectsService: ProjectsService,
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
@@ -289,6 +294,105 @@ export class TicketsService {
     return this.toBlockerSummaries(dependencies);
   }
 
+  async createAttachment(
+    ticketId: number,
+    file: Express.Multer.File,
+    performedBy?: number,
+  ): Promise<TicketAttachmentResponse> {
+    return this.dataSource.transaction(async (manager) => {
+      const ticketRepo = manager.getRepository(Ticket);
+      const attachmentRepo = manager.getRepository(TicketAttachment);
+
+      const ticket = await ticketRepo.findOne({
+        where: { id: ticketId },
+        withDeleted: true,
+      });
+      this.assertActiveTicketForAttachment(ticket, ticketId);
+
+      const attachment = attachmentRepo.create({
+        ticketId,
+        filename: file.originalname,
+        contentType: file.mimetype,
+      });
+      const saved = await attachmentRepo.save(attachment);
+
+      await this.auditLogService.record(
+        {
+          action: AuditAction.CREATE,
+          entityType: AuditEntityType.TICKET_ATTACHMENT,
+          entityId: saved.id,
+          performedBy: performedBy ?? ticket.assigneeId ?? ticket.projectId,
+          actorType: AuditActor.USER,
+          details: {
+            ticketId,
+            attachmentId: saved.id,
+            filename: saved.filename,
+          },
+        },
+        manager,
+      );
+
+      return toAttachmentResponse(saved);
+    });
+  }
+
+  async getAttachments(ticketId: number): Promise<TicketAttachmentResponse[]> {
+    await this.getTicketOrThrow(ticketId);
+
+    const attachments = await this.ticketAttachmentRepository.find({
+      where: { ticketId, deletedAt: IsNull() },
+      order: { id: 'ASC' },
+    });
+
+    return attachments
+      .map(toAttachmentResponse)
+      .sort((a, b) => a.id - b.id);
+  }
+
+  async removeAttachment(
+    ticketId: number,
+    attachmentId: number,
+    performedBy?: number,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const ticketRepo = manager.getRepository(Ticket);
+      const attachmentRepo = manager.getRepository(TicketAttachment);
+
+      const ticket = await ticketRepo.findOne({
+        where: { id: ticketId },
+        withDeleted: true,
+      });
+      this.assertActiveTicketForAttachment(ticket, ticketId);
+
+      const attachment = await attachmentRepo.findOne({
+        where: { id: attachmentId, ticketId, deletedAt: IsNull() },
+      });
+      if (!attachment) {
+        throw new NotFoundException(
+          `Attachment ${attachmentId} not found for ticket ${ticketId}`,
+        );
+      }
+
+      await attachmentRepo.softDelete(attachmentId);
+
+      await this.auditLogService.record(
+        {
+          action: AuditAction.DELETE,
+          entityType: AuditEntityType.TICKET_ATTACHMENT,
+          entityId: attachment.id,
+          performedBy: performedBy ?? ticket.assigneeId ?? ticket.projectId,
+          actorType: AuditActor.USER,
+          details: {
+            ticketId,
+            attachmentId: attachment.id,
+            filename: attachment.filename,
+          },
+        },
+        manager,
+      );
+    });
+  }
+
   async removeDependency(
     ticketId: number,
     blockerId: number,
@@ -393,6 +497,13 @@ export class TicketsService {
     ticket: Ticket | null,
     id: number,
   ): asserts ticket is Ticket {
+    this.assertActiveTicketForAttachment(ticket, id);
+  }
+
+  private assertActiveTicketForAttachment(
+    ticket: Ticket | null,
+    id: number,
+  ): asserts ticket is Ticket {
     if (!ticket) {
       throw new NotFoundException(`Ticket ${id} not found`);
     }
@@ -433,4 +544,9 @@ export class TicketsService {
 
 }
 
-export type { TicketBlockerSummary, TicketResponse, TicketDetailResponse };
+export type {
+  TicketAttachmentResponse,
+  TicketBlockerSummary,
+  TicketDetailResponse,
+  TicketResponse,
+};

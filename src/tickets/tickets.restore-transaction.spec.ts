@@ -16,6 +16,7 @@ import { UsersService } from '../users/users.service';
 import { mockUserResponse } from '../users/testing/user.fixtures';
 import { Ticket } from './entities/ticket.entity';
 import { mockTicketEntity } from './testing/ticket.fixtures';
+import { ticketAttachmentRepositoryProvider } from './testing/attachment.fixtures';
 import { ticketDependencyRepositoryProvider } from './testing/dependency.fixtures';
 import { TicketsService } from './tickets.service';
 
@@ -58,6 +59,7 @@ describe('TicketsService restore transaction boundary (regression)', () => {
         TicketsService,
         { provide: getRepositoryToken(Ticket), useValue: ticketRepository },
         ticketDependencyRepositoryProvider(),
+        ticketAttachmentRepositoryProvider(),
         {
           provide: ProjectsService,
           useValue: { findOne: jest.fn().mockResolvedValue(mockProjectResponse()) },

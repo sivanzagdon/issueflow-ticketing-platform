@@ -6,13 +6,17 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseFilePipe,
   ParseIntPipe,
   Patch,
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,6 +25,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { AddTicketDependencyDto } from './dto/add-ticket-dependency.dto';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { ticketAttachmentUploadValidators } from './ticket-attachment-upload.config';
 import { TicketsService } from './tickets.service';
 
 @UseGuards(JwtAuthGuard)
@@ -88,6 +93,41 @@ export class TicketsController {
     return this.ticketsService.removeDependency(
       ticketId,
       blockerId,
+      req.user.id,
+    );
+  }
+
+  @Post(':ticketId/attachments')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  createAttachment(
+    @Param('ticketId', ParseIntPipe) ticketId: number,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: ticketAttachmentUploadValidators(),
+      }),
+    )
+    file: Express.Multer.File,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.ticketsService.createAttachment(ticketId, file, req.user.id);
+  }
+
+  @Get(':ticketId/attachments')
+  getAttachments(@Param('ticketId', ParseIntPipe) ticketId: number) {
+    return this.ticketsService.getAttachments(ticketId);
+  }
+
+  @Delete(':ticketId/attachments/:attachmentId')
+  @HttpCode(HttpStatus.OK)
+  removeAttachment(
+    @Param('ticketId', ParseIntPipe) ticketId: number,
+    @Param('attachmentId', ParseIntPipe) attachmentId: number,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.ticketsService.removeAttachment(
+      ticketId,
+      attachmentId,
       req.user.id,
     );
   }

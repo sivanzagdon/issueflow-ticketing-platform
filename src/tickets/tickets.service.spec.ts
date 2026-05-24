@@ -22,6 +22,7 @@ import {
   mockTicketEntity,
   mockTicketResponse,
 } from './testing/ticket.fixtures';
+import { ticketAttachmentRepositoryProvider } from './testing/attachment.fixtures';
 import { ticketDependencyRepositoryProvider } from './testing/dependency.fixtures';
 import { TicketsService } from './tickets.service';
 
@@ -59,6 +60,7 @@ describe('TicketsService', () => {
         TicketsService,
         { provide: getRepositoryToken(Ticket), useValue: ticketRepository },
         ticketDependencyRepositoryProvider(),
+        ticketAttachmentRepositoryProvider(),
         { provide: ProjectsService, useValue: projectsService },
         { provide: UsersService, useValue: usersService },
         {

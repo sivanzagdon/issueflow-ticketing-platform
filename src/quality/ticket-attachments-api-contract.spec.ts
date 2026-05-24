@@ -9,6 +9,7 @@ import {
   expectTicketAttachmentResponseShape,
   mockAttachmentList,
   mockAttachmentResponse,
+  mockUploadFile,
   TicketAttachmentList,
   TicketAttachmentResponse,
   TicketsServiceSlice13,
@@ -20,7 +21,7 @@ import { expectHandlerRoute } from './testing/route-metadata.helpers';
 type TicketsControllerSlice13 = TicketsController & {
   createAttachment(
     ticketId: number,
-    body: { filename: string; contentType: string },
+    file: Express.Multer.File,
     req: { user: { id: number } },
   ): Promise<TicketAttachmentResponse>;
   getAttachments(ticketId: number): Promise<TicketAttachmentList>;
@@ -32,7 +33,7 @@ type TicketsControllerSlice13 = TicketsController & {
 };
 
 /**
- * Slice 13 — ticket attachments API contract (README metadata-only).
+ * Slice 13 — ticket attachments API contract (README multipart upload).
  */
 describe('Ticket attachments API contract (Slice 13)', () => {
   describe('TicketsController routes', () => {
@@ -48,12 +49,16 @@ describe('Ticket attachments API contract (Slice 13)', () => {
       expectHandlerRoute(TicketsController, handler, method, path);
     });
 
+    it('createAttachment uses 200 OK per README', () => {
+      const handler = TicketsController.prototype.createAttachment;
+      const httpCode = Reflect.getMetadata(HTTP_CODE_METADATA, handler) as
+        | number
+        | undefined;
+      expect(httpCode).toBe(200);
+    });
+
     it('removeAttachment uses 200 OK per project convention', () => {
-      const handler = (
-        TicketsController.prototype as {
-          removeAttachment?: () => void;
-        }
-      ).removeAttachment;
+      const handler = TicketsController.prototype.removeAttachment;
       const httpCode = Reflect.getMetadata(HTTP_CODE_METADATA, handler) as
         | number
         | undefined;
@@ -86,14 +91,14 @@ describe('Ticket attachments API contract (Slice 13)', () => {
       controller = module.get(TicketsController) as TicketsControllerSlice13;
     });
 
-    it('createAttachment delegates filename and contentType to service', async () => {
-      const body = { filename: 'screenshot.png', contentType: 'image/png' };
+    it('createAttachment delegates uploaded file metadata to service', async () => {
+      const file = mockUploadFile();
 
-      const result = await controller.createAttachment(12, body, {
+      const result = await controller.createAttachment(12, file, {
         user: mockUserResponse(),
       });
 
-      expect(ticketsService.createAttachment).toHaveBeenCalledWith(12, body, 1);
+      expect(ticketsService.createAttachment).toHaveBeenCalledWith(12, file, 1);
       expectTicketAttachmentResponseShape(result);
       expect(result).toEqual({
         id: 1,
@@ -137,14 +142,21 @@ describe('Ticket attachments API contract (Slice 13)', () => {
 
     it('does not integrate external file storage in tickets service', () => {
       expect(ticketsServiceSource).not.toMatch(
-        /multer|cloudinary|aws-sdk|@aws-sdk|filesystem|readFileSync\(/i,
+        /cloudinary|aws-sdk|@aws-sdk|writeFile|createWriteStream|storageKey/i,
       );
     });
 
-    it('does not expose multipart upload handling on attachments routes', () => {
-      expect(ticketsControllerSource).not.toMatch(
-        /FileInterceptor|UploadedFile|multipart\/form-data/i,
+    it('uses multipart upload with FileInterceptor and ParseFilePipe on create', () => {
+      const uploadConfigSource = readFileSync(
+        join(__dirname, '../tickets/ticket-attachment-upload.config.ts'),
+        'utf8',
       );
+      expect(ticketsControllerSource).toMatch(/FileInterceptor\('file'\)/);
+      expect(ticketsControllerSource).toMatch(/UploadedFile/);
+      expect(ticketsControllerSource).toMatch(/ParseFilePipe/);
+      expect(ticketsControllerSource).toMatch(/ticketAttachmentUploadValidators/);
+      expect(uploadConfigSource).toMatch(/MaxFileSizeValidator/);
+      expect(uploadConfigSource).toMatch(/FileTypeValidator/);
     });
 
     it('keeps attachment handlers as thin delegation (no repository usage in controller)', () => {
