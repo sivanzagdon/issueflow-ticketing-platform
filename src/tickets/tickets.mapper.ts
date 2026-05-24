@@ -1,5 +1,12 @@
 import { TicketStateHistoryEntry } from '../audit-log/audit-log.types';
+import { TicketStatus } from '../common/enums/ticket-status.enum';
 import { Ticket } from './entities/ticket.entity';
+
+export type TicketBlockerSummary = {
+  id: number;
+  title: string;
+  status: TicketStatus;
+};
 
 export type TicketResponse = Pick<
   Ticket,

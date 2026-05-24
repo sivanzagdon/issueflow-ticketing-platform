@@ -19,6 +19,7 @@ import {
 } from '../audit-log/testing/transaction-test.helpers';
 import { Ticket } from './entities/ticket.entity';
 import { mockTicketEntity } from './testing/ticket.fixtures';
+import { ticketDependencyRepositoryProvider } from './testing/dependency.fixtures';
 import { TicketsService } from './tickets.service';
 
 /** Slice 9 service surface — not implemented yet. */
@@ -72,6 +73,7 @@ describe('TicketsService soft delete and restore (slice 9)', () => {
       providers: [
         TicketsService,
         { provide: getRepositoryToken(Ticket), useValue: ticketRepository },
+        ticketDependencyRepositoryProvider(),
         {
           provide: ProjectsService,
           useValue: { findOne: jest.fn().mockResolvedValue(mockProjectResponse()) },

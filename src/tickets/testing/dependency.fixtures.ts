@@ -1,12 +1,9 @@
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { TicketStatus } from '../../common/enums/ticket-status.enum';
+import { TicketDependency } from '../entities/ticket-dependency.entity';
 
-/** Test-only stand-in for the dependency association table (Slice 12). */
-export class TicketDependencyEntityStub {
-  id!: number;
-  ticketId!: number;
-  blockerTicketId!: number;
-  createdAt!: Date;
-}
+/** Alias used by Slice 12 specs — production entity is TicketDependency. */
+export { TicketDependency as TicketDependencyEntityStub };
 
 /** README GET /tickets/:ticketId/dependencies response item. */
 export type TicketBlockerSummary = {
@@ -21,14 +18,28 @@ export type TicketBlockerList = TicketBlockerSummary[];
 export const AUDIT_ENTITY_TICKET_DEPENDENCY = 'TICKET_DEPENDENCY';
 
 export const mockDependencyEntity = (
-  overrides: Partial<TicketDependencyEntityStub> = {},
-): TicketDependencyEntityStub => ({
-  id: 1,
-  ticketId: 10,
-  blockerTicketId: 42,
-  createdAt: new Date('2026-01-01T12:00:00.000Z'),
-  ...overrides,
-});
+  overrides: Partial<{
+    id: number;
+    ticketId: number;
+    blockerId: number;
+    blockerTicketId: number;
+    createdAt: Date;
+  }> = {},
+): {
+  id: number;
+  ticketId: number;
+  blockerId: number;
+  createdAt: Date;
+} => {
+  const { blockerTicketId, blockerId: blockerIdOverride, ...rest } = overrides;
+  return {
+    id: 1,
+    ticketId: 10,
+    blockerId: blockerIdOverride ?? blockerTicketId ?? 42,
+    createdAt: new Date('2026-01-01T12:00:00.000Z'),
+    ...rest,
+  };
+};
 
 export const mockBlockerSummary = (
   overrides: Partial<TicketBlockerSummary> = {},
@@ -80,6 +91,14 @@ export function createMockDependencyRepository(): {
     findOne: jest.fn().mockResolvedValue(null),
     delete: jest.fn().mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] }),
     createQueryBuilder: jest.fn(),
+  };
+}
+
+/** Nest provider for TicketsService unit tests that do not exercise dependencies. */
+export function ticketDependencyRepositoryProvider() {
+  return {
+    provide: getRepositoryToken(TicketDependency),
+    useValue: createMockDependencyRepository(),
   };
 }
 

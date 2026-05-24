@@ -18,6 +18,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../common/enums/user-role.enum';
+import { AddTicketDependencyDto } from './dto/add-ticket-dependency.dto';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { TicketsService } from './tickets.service';
@@ -56,6 +57,39 @@ export class TicketsController {
     @Req() req: { user: AuthenticatedUser },
   ) {
     return this.ticketsService.restore(ticketId, req.user.id);
+  }
+
+  @Post(':ticketId/dependencies')
+  @HttpCode(HttpStatus.OK)
+  addDependency(
+    @Param('ticketId', ParseIntPipe) ticketId: number,
+    @Body() dto: AddTicketDependencyDto,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.ticketsService.addDependency(
+      ticketId,
+      dto.blockedBy,
+      req.user.id,
+    );
+  }
+
+  @Get(':ticketId/dependencies')
+  getDependencies(@Param('ticketId', ParseIntPipe) ticketId: number) {
+    return this.ticketsService.getDependencies(ticketId);
+  }
+
+  @Delete(':ticketId/dependencies/:blockerId')
+  @HttpCode(HttpStatus.OK)
+  removeDependency(
+    @Param('ticketId', ParseIntPipe) ticketId: number,
+    @Param('blockerId', ParseIntPipe) blockerId: number,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.ticketsService.removeDependency(
+      ticketId,
+      blockerId,
+      req.user.id,
+    );
   }
 
   @Get(':ticketId')

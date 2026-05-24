@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Not, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, QueryFailedError, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -15,8 +15,10 @@ import { ProjectsService } from '../projects/projects.service';
 import { UsersService } from '../users/users.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { TicketDependency } from './entities/ticket-dependency.entity';
 import { Ticket } from './entities/ticket.entity';
 import {
+  TicketBlockerSummary,
   TicketDetailResponse,
   TicketResponse,
   toTicketResponse,
@@ -42,6 +44,8 @@ export class TicketsService {
   constructor(
     @InjectRepository(Ticket)
     private readonly ticketRepository: Repository<Ticket>,
+    @InjectRepository(TicketDependency)
+    private readonly ticketDependencyRepository: Repository<TicketDependency>,
     private readonly projectsService: ProjectsService,
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
@@ -231,6 +235,100 @@ export class TicketsService {
     });
   }
 
+  async addDependency(
+    ticketId: number,
+    blockedBy: number,
+    performedBy?: number,
+  ): Promise<void> {
+    if (ticketId === blockedBy) {
+      throw new BadRequestException('Ticket cannot depend on itself');
+    }
+
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const ticketRepo = manager.getRepository(Ticket);
+        const dependencyRepo = manager.getRepository(TicketDependency);
+
+        const ticket = await ticketRepo.findOne({ where: { id: ticketId } });
+        this.assertActiveTicketForDependency(ticket, ticketId);
+
+        const blocker = await ticketRepo.findOne({ where: { id: blockedBy } });
+        this.assertActiveTicketForDependency(blocker, blockedBy);
+
+        const dependency = dependencyRepo.create({ ticketId, blockerId: blockedBy });
+        const saved = await dependencyRepo.save(dependency);
+
+        await this.auditLogService.record(
+          {
+            action: AuditAction.CREATE,
+            entityType: AuditEntityType.TICKET_DEPENDENCY,
+            entityId: saved.id,
+            performedBy: performedBy ?? ticket!.assigneeId ?? ticket!.projectId,
+            actorType: AuditActor.USER,
+            details: { ticketId, blockedBy },
+          },
+          manager,
+        );
+      });
+    } catch (error) {
+      this.rethrowDependencyPersistenceError(error);
+    }
+  }
+
+  async getDependencies(ticketId: number): Promise<TicketBlockerSummary[]> {
+    await this.getTicketOrThrow(ticketId);
+
+    const dependencies = await this.ticketDependencyRepository.find({
+      where: {
+        ticketId,
+        blocker: { deletedAt: IsNull() },
+      },
+      relations: ['blocker'],
+    });
+
+    return this.toBlockerSummaries(dependencies);
+  }
+
+  async removeDependency(
+    ticketId: number,
+    blockerId: number,
+    performedBy?: number,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const ticketRepo = manager.getRepository(Ticket);
+      const dependencyRepo = manager.getRepository(TicketDependency);
+
+      const ticket = await ticketRepo.findOne({ where: { id: ticketId } });
+      this.assertActiveTicketForDependency(ticket, ticketId);
+
+      const blocker = await ticketRepo.findOne({ where: { id: blockerId } });
+      this.assertActiveTicketForDependency(blocker, blockerId);
+
+      const dependency = await dependencyRepo.findOne({
+        where: { ticketId, blockerId },
+      });
+      if (!dependency) {
+        throw new NotFoundException(
+          `Dependency from ticket ${ticketId} to blocker ${blockerId} not found`,
+        );
+      }
+
+      await dependencyRepo.delete({ ticketId, blockerId });
+
+      await this.auditLogService.record(
+        {
+          action: AuditAction.DELETE,
+          entityType: AuditEntityType.TICKET_DEPENDENCY,
+          entityId: dependency.id,
+          performedBy: performedBy ?? ticket.assigneeId ?? ticket.projectId,
+          actorType: AuditActor.USER,
+          details: { ticketId, blockedBy: blockerId },
+        },
+        manager,
+      );
+    });
+  }
+
   async remove(id: number, performedBy?: number): Promise<void> {
     const ticket = await this.getTicketOrThrow(id);
 
@@ -291,6 +389,48 @@ export class TicketsService {
     return ticket;
   }
 
+  private assertActiveTicketForDependency(
+    ticket: Ticket | null,
+    id: number,
+  ): asserts ticket is Ticket {
+    if (!ticket) {
+      throw new NotFoundException(`Ticket ${id} not found`);
+    }
+    if (ticket.deletedAt != null) {
+      throw new BadRequestException(`Ticket ${id} is deleted`);
+    }
+  }
+
+  private toBlockerSummaries(
+    dependencies: TicketDependency[],
+  ): TicketBlockerSummary[] {
+    const byId = new Map<number, TicketBlockerSummary>();
+
+    for (const dependency of dependencies) {
+      const blocker = dependency.blocker;
+      if (!blocker || byId.has(blocker.id)) {
+        continue;
+      }
+      byId.set(blocker.id, {
+        id: blocker.id,
+        title: blocker.title,
+        status: blocker.status,
+      });
+    }
+
+    return [...byId.values()].sort((a, b) => a.id - b.id);
+  }
+
+  private rethrowDependencyPersistenceError(error: unknown): never {
+    if (
+      error instanceof QueryFailedError &&
+      (error.driverError as { code?: string })?.code === '23505'
+    ) {
+      throw new ConflictException('Dependency already exists');
+    }
+    throw error;
+  }
+
 }
 
-export type { TicketResponse, TicketDetailResponse };
+export type { TicketBlockerSummary, TicketResponse, TicketDetailResponse };

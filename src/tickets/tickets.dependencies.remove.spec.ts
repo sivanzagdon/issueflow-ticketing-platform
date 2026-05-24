@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -80,10 +80,24 @@ describe('TicketsService removeDependency (Slice 12)', () => {
     service = module.get(TicketsService) as TicketsServiceSlice12;
   });
 
+  const activeTicket = (id: number) =>
+    mockTicketEntity({ id, deletedAt: null });
+
+  const mockActiveSourceAndBlocker = (sourceId: number, blockerId: number) => {
+    ticketRepository.findOne.mockImplementation(async (options) => {
+      const id = (options as { where: { id: number } }).where.id;
+      if (id === sourceId) {
+        return activeTicket(sourceId);
+      }
+      if (id === blockerId) {
+        return activeTicket(blockerId);
+      }
+      return null;
+    });
+  };
+
   it('removes an existing dependency', async () => {
-    ticketRepository.findOne.mockResolvedValue(
-      mockTicketEntity({ id: 10, deletedAt: null }),
-    );
+    mockActiveSourceAndBlocker(10, 42);
     dependencyRepository.findOne.mockResolvedValue(
       mockDependencyEntity({ id: 7, ticketId: 10, blockerTicketId: 42 }),
     );
@@ -101,9 +115,7 @@ describe('TicketsService removeDependency (Slice 12)', () => {
   });
 
   it('runs dependency removal inside dataSource.transaction', async () => {
-    ticketRepository.findOne.mockResolvedValue(
-      mockTicketEntity({ id: 10, deletedAt: null }),
-    );
+    mockActiveSourceAndBlocker(10, 42);
     dependencyRepository.findOne.mockResolvedValue(
       mockDependencyEntity({ id: 7, ticketId: 10, blockerTicketId: 42 }),
     );
@@ -114,9 +126,7 @@ describe('TicketsService removeDependency (Slice 12)', () => {
   });
 
   it('writes DELETE audit for TICKET_DEPENDENCY inside the same transaction', async () => {
-    ticketRepository.findOne.mockResolvedValue(
-      mockTicketEntity({ id: 10, deletedAt: null }),
-    );
+    mockActiveSourceAndBlocker(10, 42);
     dependencyRepository.findOne.mockResolvedValue(
       mockDependencyEntity({ id: 7, ticketId: 10, blockerTicketId: 42 }),
     );
@@ -138,9 +148,7 @@ describe('TicketsService removeDependency (Slice 12)', () => {
   });
 
   it('fails with NotFoundException when dependency does not exist', async () => {
-    ticketRepository.findOne.mockResolvedValue(
-      mockTicketEntity({ id: 10, deletedAt: null }),
-    );
+    mockActiveSourceAndBlocker(10, 42);
     dependencyRepository.findOne.mockResolvedValue(null);
 
     await expect(service.removeDependency(10, 42, 2)).rejects.toBeInstanceOf(
@@ -151,9 +159,7 @@ describe('TicketsService removeDependency (Slice 12)', () => {
   });
 
   it('does not remove unrelated dependencies', async () => {
-    ticketRepository.findOne.mockResolvedValue(
-      mockTicketEntity({ id: 10, deletedAt: null }),
-    );
+    mockActiveSourceAndBlocker(10, 42);
     dependencyRepository.findOne.mockResolvedValue(
       mockDependencyEntity({ id: 7, ticketId: 10, blockerTicketId: 42 }),
     );
@@ -167,9 +173,7 @@ describe('TicketsService removeDependency (Slice 12)', () => {
   });
 
   it('rolls back delete when audit write fails', async () => {
-    ticketRepository.findOne.mockResolvedValue(
-      mockTicketEntity({ id: 10, deletedAt: null }),
-    );
+    mockActiveSourceAndBlocker(10, 42);
     dependencyRepository.findOne.mockResolvedValue(
       mockDependencyEntity({ id: 7, ticketId: 10, blockerTicketId: 42 }),
     );
@@ -182,14 +186,53 @@ describe('TicketsService removeDependency (Slice 12)', () => {
   });
 
   it('does not write audit when dependency is missing', async () => {
-    ticketRepository.findOne.mockResolvedValue(
-      mockTicketEntity({ id: 10, deletedAt: null }),
-    );
+    mockActiveSourceAndBlocker(10, 42);
     dependencyRepository.findOne.mockResolvedValue(null);
 
     await expect(service.removeDependency(10, 42, 2)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+    expect(auditLogService.record).not.toHaveBeenCalled();
+  });
+
+  it('fails with NotFoundException when blocker ticket is missing', async () => {
+    ticketRepository.findOne
+      .mockResolvedValueOnce(activeTicket(10))
+      .mockResolvedValueOnce(null);
+
+    await expect(service.removeDependency(10, 99, 2)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(dependencyRepository.findOne).not.toHaveBeenCalled();
+    expect(dependencyRepository.delete).not.toHaveBeenCalled();
+    expect(auditLogService.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects when blocker ticket is soft-deleted', async () => {
+    ticketRepository.findOne
+      .mockResolvedValueOnce(activeTicket(10))
+      .mockResolvedValueOnce(
+        mockTicketEntity({ id: 42, deletedAt: new Date() }),
+      );
+
+    await expect(service.removeDependency(10, 42, 2)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(dependencyRepository.findOne).not.toHaveBeenCalled();
+    expect(dependencyRepository.delete).not.toHaveBeenCalled();
+    expect(auditLogService.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects when source ticket is soft-deleted', async () => {
+    ticketRepository.findOne.mockResolvedValueOnce(
+      mockTicketEntity({ id: 10, deletedAt: new Date() }),
+    );
+
+    await expect(service.removeDependency(10, 42, 2)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(dependencyRepository.findOne).not.toHaveBeenCalled();
+    expect(dependencyRepository.delete).not.toHaveBeenCalled();
     expect(auditLogService.record).not.toHaveBeenCalled();
   });
 });

@@ -136,7 +136,7 @@ describe('TicketsService dependencies — transaction and audit (Slice 12)', () 
       });
       auditLogService.record.mockImplementation(async () => {
         callOrder.push('audit');
-        return { id: 1 };
+        return { id: 1 } as never;
       });
 
       await service.addDependency(10, 42, 2);
@@ -165,7 +165,9 @@ describe('TicketsService dependencies — transaction and audit (Slice 12)', () 
   describe('removeDependency', () => {
     it('writes audit only after successful dependency delete', async () => {
       const callOrder: string[] = [];
-      ticketRepository.findOne.mockResolvedValue(activeTicket(10));
+      ticketRepository.findOne
+        .mockResolvedValueOnce(activeTicket(10))
+        .mockResolvedValueOnce(activeTicket(42));
       dependencyRepository.findOne.mockResolvedValue(
         mockDependencyEntity({ id: 7, ticketId: 10, blockerTicketId: 42 }),
       );
@@ -175,7 +177,7 @@ describe('TicketsService dependencies — transaction and audit (Slice 12)', () 
       });
       auditLogService.record.mockImplementation(async () => {
         callOrder.push('audit');
-        return { id: 1 };
+        return { id: 1 } as never;
       });
 
       await service.removeDependency(10, 42, 2);
@@ -184,7 +186,9 @@ describe('TicketsService dependencies — transaction and audit (Slice 12)', () 
     });
 
     it('does not write duplicate audit records on successful remove', async () => {
-      ticketRepository.findOne.mockResolvedValue(activeTicket(10));
+      ticketRepository.findOne
+        .mockResolvedValueOnce(activeTicket(10))
+        .mockResolvedValueOnce(activeTicket(42));
       dependencyRepository.findOne.mockResolvedValue(
         mockDependencyEntity({ id: 7, ticketId: 10, blockerTicketId: 42 }),
       );

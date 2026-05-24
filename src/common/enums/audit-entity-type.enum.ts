@@ -3,4 +3,5 @@ export enum AuditEntityType {
   PROJECT = 'PROJECT',
   TICKET = 'TICKET',
   COMMENT = 'COMMENT',
+  TICKET_DEPENDENCY = 'TICKET_DEPENDENCY',
 }
