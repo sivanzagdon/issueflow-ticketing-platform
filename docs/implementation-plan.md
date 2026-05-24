@@ -904,3 +904,148 @@ Deliverables:
 - Unit and e2e tests
 - Passing test suite
 
+### Slice 9 — Soft Delete + Restore Lifecycle
+Status: Completed
+
+Goal:
+Implement production-style soft delete and restore flows for tickets and projects, while preserving standard API behavior, authorization rules, and Audit Log consistency.
+
+Requirement source:
+The assignment requires tickets and projects to support soft delete only, with deleted records hidden from standard API responses and recoverable by ADMIN users.
+
+Scope:
+- Ticket soft delete
+- Ticket restore
+- Project soft delete
+- Project restore
+- Deleted-only listing endpoints
+- ADMIN-only access for deleted/restore endpoints
+- DB-level deleted filtering
+- Transactional restore lifecycle
+- Audit Log integration for DELETE and RESTORE
+- Unit and e2e tests
+
+Endpoints:
+- DELETE /tickets/:ticketId
+- GET /tickets/deleted?projectId=...
+- POST /tickets/:ticketId/restore
+- DELETE /projects/:projectId
+- GET /projects/deleted
+- POST /projects/:projectId/restore
+
+Business rules:
+- tickets and projects are never hard-deleted through public APIs.
+- soft-deleted records are hidden from standard GET endpoints.
+- deleted endpoints return only soft-deleted records.
+- restore is allowed only for soft-deleted records.
+- restoring a missing record returns 404.
+- restoring a non-deleted record fails clearly.
+- deleted-list and restore endpoints are ADMIN-only.
+- DELETE creates an Audit Log record.
+- RESTORE creates an Audit Log record.
+- failed delete/restore operations do not create Audit Log records.
+
+Implementation approach:
+- use TypeORM soft delete support with deletedAt / DeleteDateColumn.
+- use withDeleted: true only for deleted-list and restore flows.
+- use DB-level filtering with deletedAt: Not(IsNull()) for deleted endpoints.
+- keep standard queries relying on TypeORM default behavior to hide deleted rows.
+- keep lookup, validation, restore mutation, and audit write inside the same transaction.
+- use centralized AuditLogService with the transaction manager.
+- keep controllers thin and services responsible for domain behavior.
+
+Audit Log behavior:
+- successful soft delete writes AuditAction.DELETE.
+- successful restore writes AuditAction.RESTORE.
+- audit entries use entityType TICKET or PROJECT.
+- audit writes are transactional with the domain mutation.
+- audit logs remain append-only.
+
+Testing strategy:
+TDD first.
+
+Service tests:
+- ticket soft delete does not physically remove the ticket.
+- deleted tickets are hidden from standard queries.
+- deleted tickets are returned from deleted-only endpoint.
+- ticket restore makes the ticket visible again.
+- restoring a missing ticket fails.
+- restoring a non-deleted ticket fails.
+- project soft delete does not physically remove the project.
+- deleted projects are hidden from standard queries.
+- deleted projects are returned from deleted-only endpoint.
+- project restore makes the project visible again.
+- restoring a missing project fails.
+- restoring a non-deleted project fails.
+- delete and restore create Audit Log records.
+- failed delete/restore operations do not create Audit Log records.
+- deleted queries use DB-level filtering.
+- restore lookup, mutation, and audit write stay inside one transaction.
+
+E2E tests:
+- DELETE /tickets/:ticketId soft deletes a ticket.
+- GET /tickets/deleted?projectId=... returns deleted tickets.
+- POST /tickets/:ticketId/restore restores a ticket.
+- DELETE /projects/:projectId soft deletes a project.
+- GET /projects/deleted returns deleted projects.
+- POST /projects/:projectId/restore restores a project.
+- deleted/restore routes require ADMIN access.
+- Audit Log contains DELETE and RESTORE records for successful operations.
+
+Architecture:
+- keep controllers thin.
+- keep soft delete / restore logic inside services.
+- preserve existing AuditLogService usage.
+- preserve current JWT and RolesGuard patterns.
+- avoid hard delete through public APIs.
+- avoid generic restore frameworks or unnecessary abstractions.
+
+Skills followed:
+- skills/engineering/tdd/SKILL.md
+- skills/engineering/audit-log-design/SKILL.md
+- skills/engineering/soft-delete-restore/SKILL.md
+- skills/engineering/api-contract-alignment/SKILL.md
+- skills/engineering/production-hardening/SKILL.md
+
+Out of scope:
+- ticket dependencies
+- attachments
+- import/export
+- mentions
+- auto assignment
+- auto escalation
+- project-level permission model beyond ADMIN-only restore/deleted access
+- changing README contract
+- hard delete endpoints
+
+Validation checklist:
+- npm run test
+- npm run build
+- npm run test:e2e if PostgreSQL is available
+- manual smoke:
+  - soft delete ticket
+  - verify ticket is hidden from standard GET
+  - verify ticket appears in deleted list
+  - restore ticket
+  - verify ticket appears again
+  - soft delete project
+  - verify project is hidden from standard GET
+  - verify project appears in deleted list
+  - restore project
+  - verify project appears again
+  - verify Audit Log contains DELETE and RESTORE records
+
+Deliverables:
+- Ticket soft delete behavior
+- Ticket restore endpoint
+- Ticket deleted-list endpoint
+- Project soft delete behavior
+- Project restore endpoint
+- Project deleted-list endpoint
+- ADMIN-only deleted/restore access
+- Transaction-safe Audit Log integration
+- DB-level deleted filtering
+- Unit tests
+- E2E tests
+- Passing test suite
+
