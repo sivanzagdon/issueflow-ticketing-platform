@@ -138,6 +138,7 @@ describe('CommentsController', () => {
       const result = await controller.update(4, 11, dto, authReq);
 
       expect(commentsService.update).toHaveBeenCalledWith(
+        4,
         11,
         dto,
         authReq.user.id,
@@ -152,7 +153,11 @@ describe('CommentsController', () => {
 
       await controller.remove(4, 15, authReq);
 
-      expect(commentsService.remove).toHaveBeenCalledWith(15, authReq.user.id);
+      expect(commentsService.remove).toHaveBeenCalledWith(
+        4,
+        15,
+        authReq.user.id,
+      );
     });
   });
 });

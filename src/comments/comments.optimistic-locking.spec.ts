@@ -101,7 +101,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       );
       mockSaveIncrementsVersion();
 
-      const result = await service.update(4, updateDto(1, 'After'), 2);
+      const result = await service.update(1, 4, updateDto(1, 'After'), 2);
 
       expect(result.content).toBe('After');
       expect(commentRepository.save).toHaveBeenCalledTimes(1);
@@ -113,7 +113,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       );
       mockSaveIncrementsVersion();
 
-      const result = await service.update(4, updateDto(2, 'After'), 2);
+      const result = await service.update(1, 4, updateDto(2, 'After'), 2);
 
       expect(result).toHaveProperty('version', 3);
     });
@@ -124,7 +124,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       );
 
       await expect(
-        service.update(4, updateDto(3, 'Stale'), 2),
+        service.update(1, 4, updateDto(3, 'Stale'), 2),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -134,7 +134,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       );
 
       await expect(
-        service.update(4, updateDto(1, 'Stale'), 2),
+        service.update(1, 4, updateDto(1, 'Stale'), 2),
       ).rejects.toThrow();
 
       expect(commentRepository.save).not.toHaveBeenCalled();
@@ -144,7 +144,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       commentRepository.findOne.mockResolvedValue(withVersion({ version: 2 }));
 
       await expect(
-        service.update(4, updateDto(1, 'Stale'), 2),
+        service.update(1, 4, updateDto(1, 'Stale'), 2),
       ).rejects.toThrow();
 
       expect(auditLogService.record).not.toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       });
 
       await expect(
-        service.update(4, updateDto(1, 'Stale'), 2),
+        service.update(1, 4, updateDto(1, 'Stale'), 2),
       ).rejects.toBeInstanceOf(ConflictException);
 
       // Slice 8 boundary: transaction opens first; lookup/version-check stay inside it.
@@ -188,7 +188,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       );
       mockSaveIncrementsVersion();
 
-      await service.update(4, updateDto(1, 'After'), 2);
+      await service.update(1, 4, updateDto(1, 'After'), 2);
 
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
       expectTransactionalAuditCall(auditLogService, transactionalManager, {
@@ -207,7 +207,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       auditLogService.record.mockRejectedValue(new Error('audit insert failed'));
 
       await expect(
-        service.update(4, updateDto(1, 'After'), 2),
+        service.update(1, 4, updateDto(1, 'After'), 2),
       ).rejects.toThrow('audit insert failed');
 
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
@@ -218,7 +218,7 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       commentRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.update(999, updateDto(1, 'Missing'), 2),
+        service.update(1, 999, updateDto(1, 'Missing'), 2),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       expect(commentRepository.save).not.toHaveBeenCalled();

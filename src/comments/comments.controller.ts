@@ -36,12 +36,13 @@ export class CommentsController {
 
   @Patch('tickets/:ticketId/comments/:commentId')
   update(
-    @Param('ticketId', ParseIntPipe) _ticketId: number,
+    @Param('ticketId', ParseIntPipe) ticketId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @Body() updateCommentDto: UpdateCommentDto,
     @Req() req: { user: AuthenticatedUser },
   ) {
     return this.commentsService.update(
+      ticketId,
       commentId,
       updateCommentDto,
       req.user.id,
@@ -50,10 +51,10 @@ export class CommentsController {
 
   @Delete('tickets/:ticketId/comments/:commentId')
   remove(
-    @Param('ticketId', ParseIntPipe) _ticketId: number,
+    @Param('ticketId', ParseIntPipe) ticketId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @Req() req: { user: AuthenticatedUser },
   ) {
-    return this.commentsService.remove(commentId, req.user.id);
+    return this.commentsService.remove(ticketId, commentId, req.user.id);
   }
 }

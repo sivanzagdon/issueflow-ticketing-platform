@@ -126,7 +126,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
     ]);
 
     const dto: UpdateCommentDto = { version: 1, content: 'After @jane only' };
-    const result = (await service.update(4, dto, 2)) as CommentResponseWithMentions;
+    const result = (await service.update(1, 4, dto, 2)) as CommentResponseWithMentions;
 
     expect(result.content).toBe('After @jane only');
     expect(result.mentionedUsers).toEqual([
@@ -143,7 +143,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
     }));
     mockUsersByUsername([]);
 
-    await service.update(4, { version: 1, content: 'No mentions now' }, 2);
+    await service.update(1, 4, { version: 1, content: 'No mentions now' }, 2);
 
     expect(mentionRepository.delete).toHaveBeenCalled();
   });
@@ -160,6 +160,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
     ]);
 
     const result = (await service.update(
+      1,
       4,
       { version: 1, content: 'Now @john' },
       2,
@@ -181,6 +182,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
     ]);
 
     const result = (await service.update(
+      1,
       4,
       { version: 1, content: 'Still @john here' },
       2,
@@ -219,7 +221,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
       mockUserEntity({ id: 10, username: 'john', fullName: 'John Smith' }),
     ]);
 
-    await service.update(4, { version: 1, content: 'After @john' }, 2);
+    await service.update(1, 4, { version: 1, content: 'After @john' }, 2);
 
     expect(callOrder[0]).toBe('transaction');
     expect(callOrder.indexOf('lookup')).toBeGreaterThan(
@@ -235,7 +237,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
     );
 
     await expect(
-      service.update(4, { version: 1, content: 'Stale @jane' }, 2),
+      service.update(1, 4, { version: 1, content: 'Stale @jane' }, 2),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(mentionRepository.save).not.toHaveBeenCalled();
@@ -249,7 +251,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
     );
 
     await expect(
-      service.update(4, { version: 1, content: 'Stale @jane' }, 2),
+      service.update(1, 4, { version: 1, content: 'Stale @jane' }, 2),
     ).rejects.toThrow();
 
     expect(auditLogService.record).not.toHaveBeenCalled();
@@ -266,7 +268,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
       mockUserEntity({ id: 10, username: 'john', fullName: 'John Smith' }),
     ]);
 
-    await service.update(4, { version: 1, content: 'After @john' }, 2);
+    await service.update(1, 4, { version: 1, content: 'After @john' }, 2);
 
     expectTransactionalAuditCall(auditLogService, transactionalManager, {
       action: AuditAction.UPDATE,

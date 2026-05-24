@@ -103,18 +103,18 @@ export class CommentsService {
   }
 
   async update(
+    ticketId: number,
     commentId: number,
     dto: UpdateCommentDto,
     performedBy?: number,
   ): Promise<CommentResponse> {
     return this.dataSource.transaction(async (manager) => {
       const commentRepo = manager.getRepository(Comment);
-      const comment = await commentRepo.findOne({
-        where: { id: commentId },
-      });
-      if (!comment) {
-        throw new NotFoundException(`Comment ${commentId} not found`);
-      }
+      const comment = await this.findCommentForTicketOrThrow(
+        commentRepo,
+        ticketId,
+        commentId,
+      );
 
       if (dto.version !== comment.version) {
         throw new ConflictException('Comment version conflict');
@@ -147,15 +147,18 @@ export class CommentsService {
     });
   }
 
-  async remove(commentId: number, performedBy?: number): Promise<void> {
+  async remove(
+    ticketId: number,
+    commentId: number,
+    performedBy?: number,
+  ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const commentRepo = manager.getRepository(Comment);
-      const comment = await commentRepo.findOne({
-        where: { id: commentId },
-      });
-      if (!comment) {
-        throw new NotFoundException(`Comment ${commentId} not found`);
-      }
+      const comment = await this.findCommentForTicketOrThrow(
+        commentRepo,
+        ticketId,
+        commentId,
+      );
 
       await commentRepo.remove(comment);
       await this.auditLogService.record(
@@ -169,6 +172,22 @@ export class CommentsService {
         manager,
       );
     });
+  }
+
+  private async findCommentForTicketOrThrow(
+    commentRepo: Repository<Comment>,
+    ticketId: number,
+    commentId: number,
+  ): Promise<Comment> {
+    const comment = await commentRepo.findOne({
+      where: { id: commentId, ticketId },
+    });
+    if (!comment) {
+      throw new NotFoundException(
+        `Comment ${commentId} not found for ticket ${ticketId}`,
+      );
+    }
+    return comment;
   }
 
   private async enrichCommentsWithMentions(

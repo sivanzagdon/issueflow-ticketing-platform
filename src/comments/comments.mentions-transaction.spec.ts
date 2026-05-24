@@ -138,7 +138,7 @@ describe('CommentsService mentions — transaction (Slice 11)', () => {
 
     const dto: UpdateCommentDto = { version: 1, content: 'After @john' };
 
-    await expect(service.update(4, dto, 2)).rejects.toThrow('mention delete failed');
+    await expect(service.update(1, 4, dto, 2)).rejects.toThrow('mention delete failed');
     expect(auditLogService.record).not.toHaveBeenCalled();
   });
 

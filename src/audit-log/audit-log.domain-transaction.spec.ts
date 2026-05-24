@@ -486,7 +486,7 @@ describe('Audit log domain transactional writes (contract)', () => {
         mockCommentEntity({ id: 4, content: 'After' }),
       );
 
-      await commentsService.update(4, { version: 1, content: 'After' }, 2);
+      await commentsService.update(1, 4, { version: 1, content: 'After' }, 2);
 
       expectTransactionalAuditCall(auditLogService, manager, {
         action: AuditAction.UPDATE,
@@ -502,7 +502,7 @@ describe('Audit log domain transactional writes (contract)', () => {
       commentRepository.findOne.mockResolvedValue(mockCommentEntity({ id: 4 }));
       commentRepository.remove.mockResolvedValue(mockCommentEntity({ id: 4 }));
 
-      await commentsService.remove(4, 2);
+      await commentsService.remove(1, 4, 2);
 
       expectTransactionalAuditCall(auditLogService, manager, {
         action: AuditAction.DELETE,
@@ -515,7 +515,7 @@ describe('Audit log domain transactional writes (contract)', () => {
       commentRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        commentsService.update(99, { version: 1, content: 'x' }, 2),
+        commentsService.update(1, 99, { version: 1, content: 'x' }, 2),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(auditLogService.record).not.toHaveBeenCalled();
     });

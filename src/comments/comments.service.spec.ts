@@ -180,10 +180,10 @@ describe('CommentsService', () => {
       commentRepository.findOne.mockResolvedValue(existing);
       commentRepository.save.mockResolvedValue(updated);
 
-      const result = await service.update(1, dto);
+      const result = await service.update(1, 1, dto);
 
       expect(commentRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: 1, ticketId: 1 },
       });
       expect(commentRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({ content: 'Edited' }),
@@ -195,7 +195,7 @@ describe('CommentsService', () => {
       commentRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.update(999, { version: 1, content: 'Nope' }),
+        service.update(1, 999, { version: 1, content: 'Nope' }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(commentRepository.save).not.toHaveBeenCalled();
     });
@@ -206,10 +206,10 @@ describe('CommentsService', () => {
       commentRepository.findOne.mockResolvedValue(mockCommentEntity());
       commentRepository.remove.mockResolvedValue(mockCommentEntity());
 
-      await service.remove(1);
+      await service.remove(1, 1);
 
       expect(commentRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: 1, ticketId: 1 },
       });
       expect(commentRepository.remove).toHaveBeenCalled();
     });
@@ -217,7 +217,7 @@ describe('CommentsService', () => {
     it('throws NotFoundException when removing a missing comment', async () => {
       commentRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.remove(999)).rejects.toBeInstanceOf(
+      await expect(service.remove(1, 999)).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(commentRepository.remove).not.toHaveBeenCalled();

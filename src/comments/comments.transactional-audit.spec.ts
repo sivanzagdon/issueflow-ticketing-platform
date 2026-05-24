@@ -225,7 +225,7 @@ describe('CommentsService transactional audit (regression)', () => {
       commentRepository.findOne.mockResolvedValue(existing);
       commentRepository.save.mockResolvedValue(saved);
 
-      await service.update(4, updateDto, 2);
+      await service.update(1, 4, updateDto, 2);
 
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
       expectTransactionalAuditCall(auditLogService, transactionalManager, {
@@ -265,10 +265,10 @@ describe('CommentsService transactional audit (regression)', () => {
         throw new Error('default repository must not load comment for update');
       });
 
-      await service.update(4, updateDto, 2);
+      await service.update(1, 4, updateDto, 2);
 
       expect(transactionalRepo.findOne).toHaveBeenCalledWith({
-        where: { id: 4 },
+        where: { id: 4, ticketId: 1 },
       });
       expect(transactionalRepo.save).toHaveBeenCalled();
       expect(commentRepository.findOne).not.toHaveBeenCalled();
@@ -280,7 +280,7 @@ describe('CommentsService transactional audit (regression)', () => {
       );
       commentRepository.save.mockRejectedValue(new Error('save failed'));
 
-      await expect(service.update(4, updateDto, 2)).rejects.toThrow('save failed');
+      await expect(service.update(1, 4, updateDto, 2)).rejects.toThrow('save failed');
       expect(auditLogService.record).not.toHaveBeenCalled();
     });
 
@@ -293,7 +293,7 @@ describe('CommentsService transactional audit (regression)', () => {
       );
       auditLogService.record.mockRejectedValue(new Error('audit insert failed'));
 
-      await expect(service.update(4, updateDto, 2)).rejects.toThrow(
+      await expect(service.update(1, 4, updateDto, 2)).rejects.toThrow(
         'audit insert failed',
       );
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
@@ -306,7 +306,7 @@ describe('CommentsService transactional audit (regression)', () => {
       commentRepository.findOne.mockResolvedValue(existing);
       commentRepository.remove.mockResolvedValue(existing);
 
-      await service.remove(4, 2);
+      await service.remove(1, 4, 2);
 
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
       expectTransactionalAuditCall(auditLogService, transactionalManager, {
@@ -336,10 +336,10 @@ describe('CommentsService transactional audit (regression)', () => {
         throw new Error('default repository must not load comment for delete');
       });
 
-      await service.remove(4, 2);
+      await service.remove(1, 4, 2);
 
       expect(transactionalRepo.findOne).toHaveBeenCalledWith({
-        where: { id: 4 },
+        where: { id: 4, ticketId: 1 },
       });
       expect(transactionalRepo.remove).toHaveBeenCalledWith(existing);
       expect(commentRepository.findOne).not.toHaveBeenCalled();
@@ -349,7 +349,7 @@ describe('CommentsService transactional audit (regression)', () => {
       commentRepository.findOne.mockResolvedValue(mockCommentEntity({ id: 4 }));
       commentRepository.remove.mockRejectedValue(new Error('remove failed'));
 
-      await expect(service.remove(4, 2)).rejects.toThrow('remove failed');
+      await expect(service.remove(1, 4, 2)).rejects.toThrow('remove failed');
       expect(auditLogService.record).not.toHaveBeenCalled();
     });
 
@@ -358,14 +358,14 @@ describe('CommentsService transactional audit (regression)', () => {
       commentRepository.remove.mockResolvedValue(mockCommentEntity({ id: 4 }));
       auditLogService.record.mockRejectedValue(new Error('audit insert failed'));
 
-      await expect(service.remove(4, 2)).rejects.toThrow('audit insert failed');
+      await expect(service.remove(1, 4, 2)).rejects.toThrow('audit insert failed');
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     });
 
     it('does not write audit when comment is missing', async () => {
       commentRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.remove(999, 2)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.remove(1, 999, 2)).rejects.toBeInstanceOf(NotFoundException);
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
       expect(auditLogService.record).not.toHaveBeenCalled();
     });
