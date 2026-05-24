@@ -1049,3 +1049,124 @@ Deliverables:
 - E2E tests
 - Passing test suite
 
+### Slice 10 — Optimistic Locking / Concurrent Edit Prevention
+Status: Planned
+
+Goal:
+Prevent simultaneous ticket/comment updates from silently overwriting each other by adding optimistic locking and explicit conflict handling.
+
+Requirement source:
+The assignment requires that:
+- a ticket cannot be updated simultaneously by two users
+- a comment cannot be edited simultaneously by two users
+
+Scope:
+- Ticket update concurrency protection
+- Comment update concurrency protection
+- Version-based optimistic locking
+- Conflict detection
+- 409 Conflict responses
+- Audit Log consistency during conflicts
+- Unit and e2e tests
+
+Endpoints:
+- PATCH /tickets/:ticketId
+- PATCH /tickets/:ticketId/comments/:commentId
+
+Business rules:
+- update requests must include the entity version that the client last read.
+- update succeeds only when the submitted version matches the current persisted version.
+- successful update increments the version.
+- stale updates must fail with 409 Conflict.
+- stale updates must not mutate the entity.
+- stale updates must not create Audit Log records.
+- update attempts against missing entities still return NotFoundException / 404.
+- existing ticket lifecycle rules remain enforced:
+  - no backward status transitions
+  - no updates once ticket is DONE
+- optimistic locking must not weaken existing validation or authorization behavior.
+
+Implementation approach:
+- use TypeORM VersionColumn or equivalent version field.
+- expose version in ticket/comment responses.
+- require version in update DTOs.
+- perform update through a version-aware condition:
+  - id matches
+  - version matches
+- map stale version conflicts to ConflictException / HTTP 409.
+- keep implementation simple and explicit.
+- avoid pessimistic locks, distributed locks, Redis locks, or queue-based locking.
+
+Audit Log behavior:
+- successful updates create normal UPDATE audit records.
+- stale/conflicting updates do not create audit records.
+- failed validation does not create audit records.
+- audit logging remains inside the same transaction as the successful update.
+
+Testing strategy:
+TDD first.
+
+Service tests:
+- ticket update succeeds with correct version.
+- ticket update increments version.
+- ticket update with stale version fails with ConflictException.
+- stale ticket update does not create Audit Log record.
+- ticket lifecycle rules still apply together with version checks.
+- comment update succeeds with correct version.
+- comment update increments version.
+- comment update with stale version fails with ConflictException.
+- stale comment update does not create Audit Log record.
+
+E2E tests:
+- fetch ticket/comment with version.
+- perform first update successfully.
+- perform second update using stale version.
+- verify second update returns 409.
+- verify persisted entity was not overwritten.
+- verify Audit Log contains only the successful update.
+
+Architecture:
+- keep controllers thin.
+- keep concurrency logic centralized in services.
+- preserve current transaction patterns.
+- preserve existing AuditLogService usage.
+- do not change endpoint paths.
+- do not introduce new architecture patterns.
+
+Skills to follow:
+- skills/engineering/tdd/SKILL.md
+- skills/engineering/api-contract-alignment/SKILL.md
+- skills/engineering/production-hardening/SKILL.md
+- skills/engineering/audit-log-design/SKILL.md
+
+Out of scope:
+- pessimistic locking
+- distributed locks
+- Redis-based locks
+- websocket collaboration
+- merge conflict resolution UI
+- locking create/delete operations
+- project optimistic locking unless explicitly added later
+- changing README unless needed to document version behavior consistently
+
+Validation checklist:
+- npm run test
+- npm run build
+- npm run test:e2e if PostgreSQL is available
+- manual smoke:
+  - get ticket includes version
+  - update ticket with correct version succeeds
+  - update ticket with stale version returns 409
+  - get comment includes version
+  - update comment with correct version succeeds
+  - update comment with stale version returns 409
+  - Audit Log is created only for successful updates
+
+Deliverables:
+- version support for Ticket and Comment updates
+- update DTO version validation
+- ConflictException mapping for stale updates
+- transaction-safe Audit Log integration
+- unit tests
+- e2e tests
+- passing test suite
