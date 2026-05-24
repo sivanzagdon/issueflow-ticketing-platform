@@ -1394,7 +1394,7 @@ Keep implementation:
 
 
 Slice 13 — Attachments Lifecycle
-Status: Planned
+Status: Completed
 
 
 Goal:
@@ -1482,3 +1482,69 @@ Before implementation:
 - Avoid overengineering
 - Smallest clean production-quality implementation only
 
+## Slice 14 — Ticket Import / Export
+
+### Goal
+Implement CSV export and import for tickets, aligned with the README and official requirements.
+
+### Endpoints
+GET /tickets/export?projectId=:projectId  
+POST /tickets/import
+
+### Export
+- projectId is required
+- project must exist
+- export non-deleted tickets for the project
+- return CSV response
+- CSV fields:
+  - id
+  - title
+  - description
+  - status
+  - priority
+  - type
+  - assigneeId
+- correctly escape commas and quotes inside field values
+
+### Import
+- accept multipart/form-data
+- fields:
+  - file: CSV file
+  - projectId: target project id
+- project must exist
+- parse CSV safely
+- create valid tickets
+- skip invalid rows
+- return summary:
+  - created
+  - failed
+  - errors
+
+### Validation
+- required fields must exist
+- status must be valid
+- priority must be valid
+- type must be valid
+- malformed CSV rows must be reported
+- valid rows should still import even if other rows fail
+
+### Audit
+- successfully imported tickets create Audit Log records
+- failed rows do not create Audit Log records
+- export is read-only and does not create Audit Log records
+
+### Out of scope
+- Excel support
+- background jobs
+- async import processing
+- external integrations
+- huge-file streaming optimization
+- storing imported CSV files
+
+### Quality bar
+- strict README contract
+- deterministic CSV escaping/parsing
+- clear error reporting
+- transaction-safe ticket creation
+- tests first
+- no overengineering
