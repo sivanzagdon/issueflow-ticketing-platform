@@ -1483,6 +1483,7 @@ Before implementation:
 - Smallest clean production-quality implementation only
 
 ## Slice 14 — Ticket Import / Export
+Status: Completed
 
 ### Goal
 Implement CSV export and import for tickets, aligned with the README and official requirements.
@@ -1546,5 +1547,50 @@ POST /tickets/import
 - deterministic CSV escaping/parsing
 - clear error reporting
 - transaction-safe ticket creation
+- tests first
+- no overengineering
+
+## Slice 15 — Auto Assignment by Workload
+Status: Planned
+
+### Goal
+Implement automatic ticket assignment when a ticket is created without `assigneeId`.
+
+### Behavior
+- assign the least-loaded `DEVELOPER`
+- workload = non-DONE, non-soft-deleted tickets in the same project
+- exclude ADMIN users
+- ties resolved by oldest registered user
+- if no developers exist → `assigneeId = null`
+- explicit `assigneeId` overrides auto-assignment
+- auto-assignment runs only on ticket creation
+
+### Endpoint
+GET /projects/:projectId/workload
+
+### Workload Response
+- include only DEVELOPER users
+- count only non-DONE tickets
+- exclude soft-deleted tickets
+- sort ascending by workload
+
+### Audit
+- auto-assignment creates Audit Log:
+  - actor = SYSTEM
+  - action = AUTO_ASSIGN
+- manual assignment does NOT create AUTO_ASSIGN
+- audit remains transactional with ticket creation
+
+### Out of scope
+- reassignment logic
+- notifications
+- queues/background jobs
+- balancing after creation
+- UI changes
+
+### Quality bar
+- strict README contract
+- deterministic workload calculation
+- transaction-safe assignment + audit
 - tests first
 - no overengineering
