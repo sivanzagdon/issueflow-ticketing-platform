@@ -6,6 +6,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { Public } from '../auth/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
+import { MentionsQueryDto } from './dto/mentions-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -24,6 +26,14 @@ export class UsersController {
   @Get()
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get(':userId/mentions')
+  findMentionsForUser(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Query() query: MentionsQueryDto,
+  ) {
+    return this.usersService.findMentionsForUser(userId, query);
   }
 
   @Get(':userId')

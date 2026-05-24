@@ -3,13 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import {
-  expectPaginatedMentionsShape,
-  PaginatedMentionsResponse,
-} from '../comments/testing/mention.fixtures';
+import { CommentMention } from '../comments/entities/comment-mention.entity';
+import { Comment } from '../comments/entities/comment.entity';
+import { expectPaginatedMentionsShape } from '../comments/testing/mention.fixtures';
 import { User } from './entities/user.entity';
 import { mockUserEntity } from './testing/user.fixtures';
-import { UsersService } from './users.service';
+import { PaginatedMentionsResponse, UsersService } from './users.service';
 
 type UsersServiceWithMentions = UsersService & {
   findMentionsForUser(
@@ -27,14 +26,48 @@ const asMentionsService = (service: UsersService): UsersServiceWithMentions =>
 describe('UsersService mentions (Slice 11)', () => {
   let service: UsersService;
   let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne'>>;
+  let commentMentionRepository: {
+    createQueryBuilder: jest.Mock;
+    find: jest.Mock;
+  };
+  let mentionQueryBuilder: {
+    innerJoinAndSelect: jest.Mock;
+    where: jest.Mock;
+    orderBy: jest.Mock;
+    getCount: jest.Mock;
+    skip: jest.Mock;
+    take: jest.Mock;
+    getMany: jest.Mock;
+  };
 
   beforeEach(async () => {
     userRepository = { findOne: jest.fn() };
+    mentionQueryBuilder = {
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(0),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    commentMentionRepository = {
+      createQueryBuilder: jest.fn().mockReturnValue(mentionQueryBuilder),
+      find: jest.fn().mockResolvedValue([]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: userRepository },
+        {
+          provide: getRepositoryToken(CommentMention),
+          useValue: commentMentionRepository,
+        },
+        {
+          provide: getRepositoryToken(Comment),
+          useValue: { find: jest.fn() },
+        },
         {
           provide: AuditLogService,
           useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) },

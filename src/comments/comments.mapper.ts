@@ -1,4 +1,11 @@
+import { User } from '../users/entities/user.entity';
 import { Comment } from './entities/comment.entity';
+
+export type MentionedUserSummary = {
+  id: number;
+  username: string;
+  fullName: string;
+};
 
 export type CommentResponse = Pick<
   Comment,
@@ -9,9 +16,22 @@ export type CommentResponse = Pick<
   | 'version'
   | 'createdAt'
   | 'updatedAt'
->;
+> & {
+  mentionedUsers: MentionedUserSummary[];
+};
 
-export function toCommentResponse(comment: Comment): CommentResponse {
+export function toMentionedUser(user: User): MentionedUserSummary {
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: user.fullName,
+  };
+}
+
+export function toCommentResponse(
+  comment: Comment,
+  mentionedUsers: MentionedUserSummary[] = [],
+): CommentResponse {
   return {
     id: comment.id,
     ticketId: comment.ticketId,
@@ -20,5 +40,6 @@ export function toCommentResponse(comment: Comment): CommentResponse {
     version: comment.version,
     createdAt: comment.createdAt,
     updatedAt: comment.updatedAt,
+    mentionedUsers,
   };
 }

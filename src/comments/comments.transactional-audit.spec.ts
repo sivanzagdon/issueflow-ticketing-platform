@@ -19,7 +19,9 @@ import { UsersService } from '../users/users.service';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { CommentMention } from './entities/comment-mention.entity';
 import { Comment } from './entities/comment.entity';
+import { createMockMentionRepository } from './testing/mention.fixtures';
 import { mockCommentEntity } from './testing/comment.fixtures';
 
 /**
@@ -33,12 +35,13 @@ describe('CommentsService transactional audit (regression)', () => {
     Pick<Repository<Comment>, 'create' | 'save' | 'findOne' | 'remove'>
   >;
   let ticketRepository: jest.Mocked<Pick<Repository<Ticket>, 'findOne'>>;
-  let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne'>>;
+  let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne' | 'find'>>;
   let auditLogService: jest.Mocked<Pick<AuditLogService, 'record'>>;
   let ticketsService: jest.Mocked<Pick<TicketsService, 'findOne'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'findOne'>>;
   let dataSource: { transaction: jest.Mock };
   let transactionalManager: EntityManager;
+  let mentionRepository: ReturnType<typeof createMockMentionRepository>;
 
   const createDto: CreateCommentDto = {
     authorId: 2,
@@ -56,10 +59,11 @@ describe('CommentsService transactional audit (regression)', () => {
     >;
 
     ticketRepository = { findOne: jest.fn() };
-    userRepository = { findOne: jest.fn() };
+    userRepository = { findOne: jest.fn(), find: jest.fn().mockResolvedValue([]) };
     auditLogService = { record: jest.fn().mockResolvedValue({ id: 1 }) };
     ticketsService = { findOne: jest.fn() };
     usersService = { findOne: jest.fn() };
+    mentionRepository = createMockMentionRepository();
 
     const ctx = createMockTransactionalContext();
     dataSource = ctx.dataSource;
@@ -74,6 +78,9 @@ describe('CommentsService transactional audit (regression)', () => {
       if (entity === User) {
         return userRepository;
       }
+      if (entity === CommentMention) {
+        return mentionRepository;
+      }
       throw new Error(`Unexpected entity: ${String(entity)}`);
     }) as unknown as typeof transactionalManager.getRepository;
 
@@ -81,6 +88,10 @@ describe('CommentsService transactional audit (regression)', () => {
       providers: [
         CommentsService,
         { provide: getRepositoryToken(Comment), useValue: commentRepository },
+        {
+          provide: getRepositoryToken(CommentMention),
+          useValue: mentionRepository,
+        },
         { provide: TicketsService, useValue: ticketsService },
         { provide: UsersService, useValue: usersService },
         { provide: AuditLogService, useValue: auditLogService },
@@ -135,6 +146,9 @@ describe('CommentsService transactional audit (regression)', () => {
         }
         if (entityArg === User) {
           return userRepository;
+        }
+        if (entityArg === CommentMention) {
+          return mentionRepository;
         }
         throw new Error(`Unexpected entity: ${String(entityArg)}`);
       }) as unknown as typeof transactionalManager.getRepository;
@@ -237,6 +251,12 @@ describe('CommentsService transactional audit (regression)', () => {
       transactionalManager.getRepository = jest.fn((entity: unknown) => {
         if (entity === Comment) {
           return transactionalRepo;
+        }
+        if (entity === User) {
+          return userRepository;
+        }
+        if (entity === CommentMention) {
+          return mentionRepository;
         }
         throw new Error(`Unexpected entity: ${String(entity)}`);
       }) as unknown as typeof transactionalManager.getRepository;

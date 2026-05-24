@@ -11,18 +11,38 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
 import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
+import {
+  CommentResponse,
+  toCommentResponse,
+} from '../comments/comments.mapper';
+import { CommentMention } from '../comments/entities/comment-mention.entity';
+import { Comment } from '../comments/entities/comment.entity';
 import { CreateUserDto } from './dto/create-user.dto';
+import { MentionsQueryDto } from './dto/mentions-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
 import { toUserResponse, UserResponse } from './users.mapper';
 
+export type PaginatedMentionsResponse = {
+  data: CommentResponse[];
+  total: number;
+  page: number;
+};
+
 export type { UserResponse };
+
+const DEFAULT_MENTIONS_PAGE = 1;
+const DEFAULT_MENTIONS_PAGE_SIZE = 20;
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(CommentMention)
+    private readonly commentMentionRepository: Repository<CommentMention>,
+    @InjectRepository(Comment)
+    private readonly commentRepository: Repository<Comment>,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
   ) {}
@@ -73,6 +93,34 @@ export class UsersService {
   async findOne(id: number): Promise<UserResponse> {
     const user = await this.getUserOrThrow(id);
     return toUserResponse(user);
+  }
+
+  async findMentionsForUser(
+    userId: number,
+    query: MentionsQueryDto,
+  ): Promise<PaginatedMentionsResponse> {
+    await this.getUserOrThrow(userId);
+
+    const page = query.page ?? DEFAULT_MENTIONS_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_MENTIONS_PAGE_SIZE;
+    const skip = (page - 1) * pageSize;
+
+    const qb = this.commentMentionRepository
+      .createQueryBuilder('mention')
+      .innerJoinAndSelect('mention.comment', 'comment')
+      .where('mention.userId = :userId', { userId })
+      .orderBy('comment.createdAt', 'DESC');
+
+    const total = await qb.getCount();
+    const mentions = await qb.skip(skip).take(pageSize).getMany();
+
+    const data = await Promise.all(
+      mentions.map((mention) =>
+        this.buildCommentResponseWithMentions(mention.comment),
+      ),
+    );
+
+    return { data, total, page };
   }
 
   async update(
@@ -144,6 +192,24 @@ export class UsersService {
         manager,
       );
     });
+  }
+
+  private async buildCommentResponseWithMentions(
+    comment: Comment,
+  ): Promise<CommentResponse> {
+    const mentions = await this.commentMentionRepository.find({
+      where: { commentId: comment.id },
+      relations: ['user'],
+    });
+    const mentionedUsers = mentions
+      .map((m) => ({
+        id: m.user.id,
+        username: m.user.username,
+        fullName: m.user.fullName,
+      }))
+      .sort((a, b) => a.id - b.id);
+
+    return toCommentResponse(comment, mentionedUsers);
   }
 
   private async getUserOrThrow(id: number): Promise<User> {

@@ -10,10 +10,13 @@ import {
   expectTransactionalAuditCall,
 } from '../audit-log/testing/transaction-test.helpers';
 import { TicketsService } from '../tickets/tickets.service';
+import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { CommentsService } from './comments.service';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { CommentMention } from './entities/comment-mention.entity';
 import { Comment } from './entities/comment.entity';
+import { createMockMentionRepository } from './testing/mention.fixtures';
 import { mockCommentEntity } from './testing/comment.fixtures';
 
 type CommentWithVersion = Comment & { version: number };
@@ -41,9 +44,18 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       save: jest.fn(),
     } as unknown as jest.Mocked<Pick<Repository<Comment>, 'findOne' | 'save'>>;
 
+    const mentionRepository = createMockMentionRepository();
+    const userRepository = { findOne: jest.fn(), find: jest.fn().mockResolvedValue([]) };
+
     transactionalManager.getRepository = jest.fn((entity: unknown) => {
       if (entity === Comment) {
         return commentRepository;
+      }
+      if (entity === CommentMention) {
+        return mentionRepository;
+      }
+      if (entity === User) {
+        return userRepository;
       }
       throw new Error(`Unexpected entity: ${String(entity)}`);
     }) as unknown as typeof transactionalManager.getRepository;
@@ -54,6 +66,10 @@ describe('CommentsService optimistic locking (Slice 10)', () => {
       providers: [
         CommentsService,
         { provide: getRepositoryToken(Comment), useValue: commentRepository },
+        {
+          provide: getRepositoryToken(CommentMention),
+          useValue: mentionRepository,
+        },
         { provide: TicketsService, useValue: { findOne: jest.fn() } },
         { provide: UsersService, useValue: { findOne: jest.fn() } },
         { provide: AuditLogService, useValue: auditLogService },

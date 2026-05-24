@@ -20,7 +20,9 @@ import { mockCommentEntity } from './testing/comment.fixtures';
 import {
   CommentMentionEntityStub,
   CommentResponseWithMentions,
+  createMockMentionRepository,
   mockMentionedUser,
+  mockUserFindByUsernames,
 } from './testing/mention.fixtures';
 
 type CommentWithVersion = Comment & { version: number };
@@ -60,14 +62,12 @@ describe('CommentsService mentions — update (Slice 11)', () => {
     } as unknown as jest.Mocked<Pick<Repository<Comment>, 'findOne' | 'save'>>;
 
     mentionRepository = {
-      save: jest.fn().mockResolvedValue(undefined),
-      delete: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
-      find: jest.fn().mockResolvedValue([]),
+      ...createMockMentionRepository(),
       remove: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<
       Pick<
         Repository<CommentMentionEntityStub>,
-        'save' | 'delete' | 'find' | 'remove'
+        'save' | 'delete' | 'find' | 'remove' | 'create'
       >
     >;
 
@@ -91,6 +91,10 @@ describe('CommentsService mentions — update (Slice 11)', () => {
       providers: [
         CommentsService,
         { provide: getRepositoryToken(Comment), useValue: commentRepository },
+        {
+          provide: getRepositoryToken(CommentMentionEntityStub),
+          useValue: mentionRepository,
+        },
         { provide: TicketsService, useValue: { findOne: jest.fn() } },
         { provide: UsersService, useValue: { findOne: jest.fn() } },
         { provide: AuditLogService, useValue: auditLogService },
@@ -102,20 +106,7 @@ describe('CommentsService mentions — update (Slice 11)', () => {
   });
 
   const mockUsersByUsername = (users: User[]) => {
-    userRepository.find.mockImplementation(async (options) => {
-      const where = options?.where as { username?: unknown } | undefined;
-      if (!where?.username) {
-        return users;
-      }
-      const requested = Array.isArray(where.username)
-        ? (where.username as string[])
-        : [String(where.username)];
-      return users.filter((u) =>
-        requested.some(
-          (name) => name.toLowerCase() === u.username.toLowerCase(),
-        ),
-      );
-    });
+    mockUserFindByUsernames(userRepository, users);
   };
 
   it('re-evaluates mentions when comment content is updated', async () => {

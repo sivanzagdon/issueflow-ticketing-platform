@@ -1,27 +1,10 @@
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { MentionsQueryDto } from './mentions-query.dto';
 
-/**
- * Slice 11 contract — replace with import from ./mentions-query.dto after implementation.
- * Validates README query params: optional page, pageSize.
- */
-export class MentionsQueryDtoContract {
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  page?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  pageSize?: number;
-}
-
-describe('MentionsQueryDto (Slice 11 contract)', () => {
+describe('MentionsQueryDto', () => {
   const validateDto = async (payload: Record<string, unknown>) => {
-    const dto = plainToInstance(MentionsQueryDtoContract, payload);
+    const dto = plainToInstance(MentionsQueryDto, payload);
     return validate(dto);
   };
 

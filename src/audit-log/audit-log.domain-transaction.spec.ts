@@ -11,6 +11,8 @@ import { TicketType } from '../common/enums/ticket-type.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CommentsService } from '../comments/comments.service';
 import { Comment } from '../comments/entities/comment.entity';
+import { CommentMention } from '../comments/entities/comment-mention.entity';
+import { createMockMentionRepository } from '../comments/testing/mention.fixtures';
 import { mockCommentEntity } from '../comments/testing/comment.fixtures';
 import { Project } from '../projects/entities/project.entity';
 import { ProjectsService } from '../projects/projects.service';
@@ -79,10 +81,20 @@ describe('Audit log domain transactional writes (contract)', () => {
         throw new Error(`Unexpected entity: ${String(entity)}`);
       }) as typeof manager.getRepository;
 
+      const mentionRepository = createMockMentionRepository();
+      const commentRepository = { find: jest.fn() };
       const module = await Test.createTestingModule({
         providers: [
           UsersService,
           { provide: getRepositoryToken(User), useValue: userRepository },
+          {
+            provide: getRepositoryToken(CommentMention),
+            useValue: mentionRepository,
+          },
+          {
+            provide: getRepositoryToken(Comment),
+            useValue: commentRepository,
+          },
           { provide: AuditLogService, useValue: auditLogService },
           { provide: DataSource, useValue: dataSource },
         ],
@@ -404,8 +416,10 @@ describe('Audit log domain transactional writes (contract)', () => {
 
       userRepository = {
         findOne: jest.fn().mockResolvedValue(mockUserEntity({ id: 2 })),
-      } as unknown as jest.Mocked<Pick<Repository<User>, 'findOne'>>;
+        find: jest.fn().mockResolvedValue([]),
+      } as unknown as jest.Mocked<Pick<Repository<User>, 'findOne' | 'find'>>;
 
+      const mentionRepository = createMockMentionRepository();
       commentRepository.create.mockReturnValue(mockCommentEntity());
       manager.getRepository = jest.fn((entity: unknown) => {
         if (entity === Comment) {
@@ -417,6 +431,9 @@ describe('Audit log domain transactional writes (contract)', () => {
         if (entity === User) {
           return userRepository;
         }
+        if (entity === CommentMention) {
+          return mentionRepository;
+        }
         throw new Error(`Unexpected entity: ${String(entity)}`);
       }) as typeof manager.getRepository;
 
@@ -424,6 +441,10 @@ describe('Audit log domain transactional writes (contract)', () => {
         providers: [
           CommentsService,
           { provide: getRepositoryToken(Comment), useValue: commentRepository },
+          {
+            provide: getRepositoryToken(CommentMention),
+            useValue: mentionRepository,
+          },
           {
             provide: TicketsService,
             useValue: { findOne: jest.fn().mockResolvedValue({ id: 1 }) },

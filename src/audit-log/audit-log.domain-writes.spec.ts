@@ -10,7 +10,11 @@ import { TicketStatus } from '../common/enums/ticket-status.enum';
 import { TicketType } from '../common/enums/ticket-type.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CommentsService } from '../comments/comments.service';
+import { CommentMention } from '../comments/entities/comment-mention.entity';
 import { Comment } from '../comments/entities/comment.entity';
+import {
+  createMockMentionRepository,
+} from '../comments/testing/mention.fixtures';
 import { Project } from '../projects/entities/project.entity';
 import { ProjectsService } from '../projects/projects.service';
 import { mockProjectEntity } from '../projects/testing/project.fixtures';
@@ -69,10 +73,20 @@ describe('Audit log domain write integration (contract)', () => {
         findOne: jest.fn().mockResolvedValue(mockUserEntity({ id: 9 })),
         delete: jest.fn().mockResolvedValue({ affected: 1 }),
       };
+      const mentionRepository = createMockMentionRepository();
+      const commentRepository = { find: jest.fn() };
       const module = await Test.createTestingModule({
         providers: [
           UsersService,
           { provide: getRepositoryToken(User), useValue: userRepository },
+          {
+            provide: getRepositoryToken(CommentMention),
+            useValue: mentionRepository,
+          },
+          {
+            provide: getRepositoryToken(Comment),
+            useValue: commentRepository,
+          },
           { provide: AuditLogService, useValue: auditLogService },
           {
             provide: DataSource,
@@ -292,11 +306,17 @@ describe('Audit log domain write integration (contract)', () => {
       };
       const userRepository = {
         findOne: jest.fn().mockResolvedValue(mockUserEntity({ id: 2 })),
+        find: jest.fn().mockResolvedValue([]),
       };
+      const mentionRepository = createMockMentionRepository();
       const module = await Test.createTestingModule({
         providers: [
           CommentsService,
           { provide: getRepositoryToken(Comment), useValue: commentRepository },
+          {
+            provide: getRepositoryToken(CommentMention),
+            useValue: mentionRepository,
+          },
           {
             provide: TicketsService,
             useValue: { findOne: jest.fn().mockResolvedValue({ id: 1 }) },
@@ -311,6 +331,7 @@ describe('Audit log domain write integration (contract)', () => {
             useValue: mockDataSourceWithRepositories(
               new Map<unknown, object>([
                 [Comment, commentRepository],
+                [CommentMention, mentionRepository],
                 [Ticket, ticketRepository],
                 [User, userRepository],
               ]),

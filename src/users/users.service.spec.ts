@@ -7,6 +7,8 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { CommentMention } from '../comments/entities/comment-mention.entity';
+import { Comment } from '../comments/entities/comment.entity';
 import { User } from './entities/user.entity';
 import { mockUserEntity, mockUserResponse } from './testing/user.fixtures';
 import { UsersService } from './users.service';
@@ -38,6 +40,17 @@ describe('UsersService', () => {
         {
           provide: getRepositoryToken(User),
           useValue: repository,
+        },
+        {
+          provide: getRepositoryToken(CommentMention),
+          useValue: {
+            createQueryBuilder: jest.fn(),
+            find: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: getRepositoryToken(Comment),
+          useValue: { find: jest.fn() },
         },
         {
           provide: AuditLogService,

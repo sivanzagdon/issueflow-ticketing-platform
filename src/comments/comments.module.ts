@@ -5,11 +5,12 @@ import { TicketsModule } from '../tickets/tickets.module';
 import { UsersModule } from '../users/users.module';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
+import { CommentMention } from './entities/comment-mention.entity';
 import { Comment } from './entities/comment.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Comment]),
+    TypeOrmModule.forFeature([Comment, CommentMention]),
     TicketsModule,
     UsersModule,
     AuditLogModule,

@@ -13,7 +13,9 @@ import { UsersService } from '../users/users.service';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { CommentMention } from './entities/comment-mention.entity';
 import { Comment } from './entities/comment.entity';
+import { createMockMentionRepository } from './testing/mention.fixtures';
 import {
   mockCommentEntity,
   mockCommentResponse,
@@ -28,7 +30,7 @@ describe('CommentsService', () => {
     >
   >;
   let ticketRepository: jest.Mocked<Pick<Repository<Ticket>, 'findOne'>>;
-  let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne'>>;
+  let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne' | 'find'>>;
   let ticketsService: jest.Mocked<Pick<TicketsService, 'findOne'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'findOne'>>;
 
@@ -52,14 +54,19 @@ describe('CommentsService', () => {
     >;
 
     ticketRepository = { findOne: jest.fn() };
-    userRepository = { findOne: jest.fn() };
+    userRepository = { findOne: jest.fn(), find: jest.fn().mockResolvedValue([]) };
     ticketsService = { findOne: jest.fn() };
     usersService = { findOne: jest.fn() };
+    const mentionRepository = createMockMentionRepository();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommentsService,
         { provide: getRepositoryToken(Comment), useValue: commentRepository },
+        {
+          provide: getRepositoryToken(CommentMention),
+          useValue: mentionRepository,
+        },
         { provide: TicketsService, useValue: ticketsService },
         { provide: UsersService, useValue: usersService },
         {
@@ -71,6 +78,7 @@ describe('CommentsService', () => {
           useValue: mockDataSourceWithRepositories(
             new Map<unknown, object>([
               [Comment, commentRepository],
+              [CommentMention, mentionRepository],
               [Ticket, ticketRepository],
               [User, userRepository],
             ]),
@@ -84,7 +92,7 @@ describe('CommentsService', () => {
 
   describe('create', () => {
     it('creates comment when ticket exists and author exists', async () => {
-      const entity = mockCommentEntity();
+      const entity = mockCommentEntity({ content: baseCreateDto.content });
       ticketRepository.findOne.mockResolvedValue(mockTicketEntity({ id: 1 }));
       userRepository.findOne.mockResolvedValue(mockUserEntity({ id: 2 }));
       commentRepository.create.mockReturnValue(entity);
@@ -106,7 +114,7 @@ describe('CommentsService', () => {
       });
       expect(result).toHaveProperty('createdAt');
       expect(result).toHaveProperty('updatedAt');
-      expect(result).not.toHaveProperty('mentionedUsers');
+      expect(result.mentionedUsers).toEqual([]);
     });
 
     it('rejects create when ticket does not exist with NotFoundException', async () => {

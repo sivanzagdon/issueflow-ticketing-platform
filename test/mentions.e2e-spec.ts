@@ -143,6 +143,34 @@ describe('Mentions (e2e)', () => {
         true,
       );
     });
+
+    it('resolves stored username case-insensitively via PostgreSQL ILike', async () => {
+      const suffix = uniqueSuffix();
+      const author = await registerUser(`author-${suffix}`, 'Author User');
+      const storedUsername = `CaseUser-${suffix}`;
+      const mentioned = await registerUser(storedUsername, 'Case User');
+      const token = await login(author.username, author.password);
+      const { ticketId } = await setupTicket(token, author.id);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/tickets/${ticketId}/comments`)
+        .set(auth(token))
+        .send({
+          authorId: author.id,
+          content: `Hello @${storedUsername.toLowerCase()}!`,
+        })
+        .expect(201);
+
+      expect(createRes.body.mentionedUsers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: mentioned.id,
+            username: storedUsername,
+            fullName: 'Case User',
+          }),
+        ]),
+      );
+    });
   });
 
   describe('update comment mentions', () => {

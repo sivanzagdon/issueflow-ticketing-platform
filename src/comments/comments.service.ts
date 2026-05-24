@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm'; // In used in enrichCommentsWithMentions
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -13,16 +13,26 @@ import { Ticket } from '../tickets/entities/ticket.entity';
 import { TicketsService } from '../tickets/tickets.service';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
-import { CommentResponse, toCommentResponse } from './comments.mapper';
+import {
+  CommentResponse,
+  MentionedUserSummary,
+  toCommentResponse,
+  toMentionedUser,
+} from './comments.mapper';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { CommentMention } from './entities/comment-mention.entity';
 import { Comment } from './entities/comment.entity';
+import { findUsersByMentionUsernames } from './mention-user-lookup';
+import { parseMentionUsernames } from './mention-parser';
 
 @Injectable()
 export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
+    @InjectRepository(CommentMention)
+    private readonly commentMentionRepository: Repository<CommentMention>,
     private readonly ticketsService: TicketsService,
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
@@ -56,6 +66,11 @@ export class CommentsService {
       });
 
       const saved = await commentRepo.save(comment);
+      const mentionedUsers = await this.syncMentions(
+        manager,
+        saved.id,
+        dto.content,
+      );
 
       await this.auditLogService.record(
         {
@@ -73,12 +88,7 @@ export class CommentsService {
         manager,
       );
 
-      return toCommentResponse({
-        ...saved,
-        ticketId,
-        authorId: dto.authorId,
-        content: dto.content,
-      });
+      return toCommentResponse(saved, mentionedUsers);
     });
   }
 
@@ -87,8 +97,9 @@ export class CommentsService {
 
     const comments = await this.commentRepository.find({
       where: { ticketId },
+      order: { createdAt: 'ASC' },
     });
-    return comments.map(toCommentResponse);
+    return this.enrichCommentsWithMentions(comments);
   }
 
   async update(
@@ -112,6 +123,11 @@ export class CommentsService {
       const beforeContent = comment.content;
       comment.content = dto.content;
       const saved = await commentRepo.save(comment);
+      const mentionedUsers = await this.syncMentions(
+        manager,
+        saved.id,
+        dto.content,
+      );
 
       await this.auditLogService.record(
         {
@@ -127,7 +143,7 @@ export class CommentsService {
         manager,
       );
 
-      return toCommentResponse(saved);
+      return toCommentResponse(saved, mentionedUsers);
     });
   }
 
@@ -153,5 +169,55 @@ export class CommentsService {
         manager,
       );
     });
+  }
+
+  private async enrichCommentsWithMentions(
+    comments: Comment[],
+  ): Promise<CommentResponse[]> {
+    if (comments.length === 0) {
+      return [];
+    }
+
+    const commentIds = comments.map((c) => c.id);
+    const mentions = await this.commentMentionRepository.find({
+      where: { commentId: In(commentIds) },
+      relations: ['user'],
+    });
+
+    const byCommentId = new Map<number, MentionedUserSummary[]>();
+    for (const mention of mentions) {
+      const list = byCommentId.get(mention.commentId) ?? [];
+      list.push(toMentionedUser(mention.user));
+      byCommentId.set(mention.commentId, list);
+    }
+
+    for (const list of byCommentId.values()) {
+      list.sort((a, b) => a.id - b.id);
+    }
+
+    return comments.map((comment) =>
+      toCommentResponse(comment, byCommentId.get(comment.id) ?? []),
+    );
+  }
+
+  private async syncMentions(
+    manager: EntityManager,
+    commentId: number,
+    content: string,
+  ): Promise<MentionedUserSummary[]> {
+    const userRepo = manager.getRepository(User);
+    const mentionRepo = manager.getRepository(CommentMention);
+
+    const usernames = parseMentionUsernames(content);
+    const users = await findUsersByMentionUsernames(userRepo, usernames);
+    await mentionRepo.delete({ commentId });
+
+    for (const user of users) {
+      await mentionRepo.save(
+        mentionRepo.create({ commentId, userId: user.id }),
+      );
+    }
+
+    return users.map(toMentionedUser);
   }
 }

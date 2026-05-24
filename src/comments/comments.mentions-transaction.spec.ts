@@ -14,7 +14,10 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { Comment } from './entities/comment.entity';
 import { mockCommentEntity } from './testing/comment.fixtures';
-import { CommentMentionEntityStub } from './testing/mention.fixtures';
+import {
+  CommentMentionEntityStub,
+  createMockMentionRepository,
+} from './testing/mention.fixtures';
 
 type CommentWithVersion = Comment & { version: number };
 
@@ -47,10 +50,7 @@ describe('CommentsService mentions — transaction (Slice 11)', () => {
       Pick<Repository<Comment>, 'create' | 'save' | 'findOne'>
     >;
 
-    mentionRepository = {
-      save: jest.fn().mockResolvedValue(undefined),
-      delete: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
-    };
+    mentionRepository = createMockMentionRepository();
 
     ticketRepository = { findOne: jest.fn() };
     userRepository = {
@@ -82,6 +82,10 @@ describe('CommentsService mentions — transaction (Slice 11)', () => {
       providers: [
         CommentsService,
         { provide: getRepositoryToken(Comment), useValue: commentRepository },
+        {
+          provide: getRepositoryToken(CommentMentionEntityStub),
+          useValue: mentionRepository,
+        },
         { provide: TicketsService, useValue: { findOne: jest.fn() } },
         { provide: UsersService, useValue: { findOne: jest.fn() } },
         { provide: AuditLogService, useValue: auditLogService },

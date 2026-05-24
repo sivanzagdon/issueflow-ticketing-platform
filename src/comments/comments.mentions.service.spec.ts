@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, ILike, Repository } from 'typeorm';
 import { createMockTransactionalContext } from '../audit-log/testing/transaction-test.helpers';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { mockTicketEntity } from '../tickets/testing/ticket.fixtures';
@@ -16,8 +16,10 @@ import { mockCommentEntity } from './testing/comment.fixtures';
 import {
   CommentMentionEntityStub,
   CommentResponseWithMentions,
+  createMockMentionRepository,
   expectCommentWithMentionsShape,
   mockMentionedUser,
+  mockUserFindByUsernames,
 } from './testing/mention.fixtures';
 
 /**
@@ -33,9 +35,7 @@ describe('CommentsService mentions — create (Slice 11)', () => {
     Pick<Repository<CommentMentionEntityStub>, 'save' | 'find'>
   >;
   let ticketRepository: jest.Mocked<Pick<Repository<Ticket>, 'findOne'>>;
-  let userRepository: jest.Mocked<
-    Pick<Repository<User>, 'findOne' | 'find' | 'createQueryBuilder'>
-  >;
+  let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne' | 'find'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'findOne'>>;
   let dataSource: { transaction: jest.Mock };
   let transactionalManager: EntityManager;
@@ -53,18 +53,14 @@ describe('CommentsService mentions — create (Slice 11)', () => {
       Pick<Repository<Comment>, 'create' | 'save' | 'find'>
     >;
 
-    mentionRepository = {
-      save: jest.fn().mockResolvedValue(undefined),
-      find: jest.fn().mockResolvedValue([]),
-    } as unknown as jest.Mocked<
-      Pick<Repository<CommentMentionEntityStub>, 'save' | 'find'>
+    mentionRepository = createMockMentionRepository() as unknown as jest.Mocked<
+      Pick<Repository<CommentMentionEntityStub>, 'save' | 'find' | 'create' | 'delete'>
     >;
 
     ticketRepository = { findOne: jest.fn() };
     userRepository = {
       findOne: jest.fn(),
       find: jest.fn(),
-      createQueryBuilder: jest.fn(),
     };
 
     usersService = { findOne: jest.fn() };
@@ -89,6 +85,10 @@ describe('CommentsService mentions — create (Slice 11)', () => {
       providers: [
         CommentsService,
         { provide: getRepositoryToken(Comment), useValue: commentRepository },
+        {
+          provide: getRepositoryToken(CommentMentionEntityStub),
+          useValue: mentionRepository,
+        },
         { provide: TicketsService, useValue: { findOne: jest.fn() } },
         { provide: UsersService, useValue: usersService },
         {
@@ -113,20 +113,7 @@ describe('CommentsService mentions — create (Slice 11)', () => {
   };
 
   const mockUsersByUsername = (users: User[]) => {
-    userRepository.find.mockImplementation(async (options) => {
-      const where = options?.where as { username?: unknown } | undefined;
-      if (!where?.username) {
-        return users;
-      }
-      const requested = Array.isArray(where.username)
-        ? (where.username as string[])
-        : [String(where.username)];
-      return users.filter((u) =>
-        requested.some(
-          (name) => name.toLowerCase() === u.username.toLowerCase(),
-        ),
-      );
-    });
+    mockUserFindByUsernames(userRepository, users);
   };
 
   it('returns mentionedUsers: [] when content has no mentions', async () => {
@@ -190,6 +177,19 @@ describe('CommentsService mentions — create (Slice 11)', () => {
     expect(result.mentionedUsers).toEqual([
       mockMentionedUser({ id: 10, username: 'john', fullName: 'John Smith' }),
     ]);
+  });
+
+  it('syncMentions resolves users via ILike repository lookup at runtime', async () => {
+    mockUsersByUsername([
+      mockUserEntity({ id: 10, username: 'john', fullName: 'John Smith' }),
+    ]);
+    const dto = setupCreate('Hello @John');
+
+    await service.create(1, dto);
+
+    expect(userRepository.find).toHaveBeenCalledWith({
+      where: [{ username: ILike('John') }],
+    });
   });
 
   it('ignores unknown usernames without throwing', async () => {
