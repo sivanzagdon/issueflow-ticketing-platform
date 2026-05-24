@@ -1551,7 +1551,7 @@ POST /tickets/import
 - no overengineering
 
 ## Slice 15 — Auto Assignment by Workload
-Status: Planned
+Status: Completed
 
 ### Goal
 Implement automatic ticket assignment when a ticket is created without `assigneeId`.
@@ -1592,5 +1592,56 @@ GET /projects/:projectId/workload
 - strict README contract
 - deterministic workload calculation
 - transaction-safe assignment + audit
+- tests first
+- no overengineering
+
+## Slice 16 — Ticket Auto Escalation
+Status: Planned
+
+### Goal
+Implement automatic priority escalation for overdue tickets with `dueDate`.
+
+### Behavior
+- tickets may have optional `dueDate`
+- overdue unresolved tickets escalate priority:
+  - LOW → MEDIUM
+  - MEDIUM → HIGH
+  - HIGH → CRITICAL
+- CRITICAL overdue tickets are not escalated further
+- CRITICAL overdue tickets get `isOverdue = true`
+- escalation does not change ticket status
+- DONE tickets are not escalated
+- tickets without `dueDate` are ignored
+
+### Manual priority change
+- when user manually changes priority via `PATCH /tickets/:id`:
+  - reset auto-escalation state
+  - clear `isOverdue`
+  - next escalation cycle re-evaluates from the new priority
+
+### Audit
+- automatic escalation creates Audit Log records
+- actor = SYSTEM
+- action = AUTO_ESCALATE
+- audit should include old priority, new priority, ticket id, and reason
+
+### Execution
+- keep implementation deterministic
+- prefer a service method that runs escalation explicitly
+- avoid real cron/background scheduling unless already required by README
+
+### Out of scope
+- notifications
+- email alerts
+- queues/background jobs
+- changing ticket status
+- SLA configuration UI
+- repeated escalation beyond CRITICAL
+
+### Quality bar
+- strict requirements alignment
+- deterministic date handling
+- idempotent escalation
+- transaction-safe ticket update + audit
 - tests first
 - no overengineering
