@@ -4,96 +4,232 @@
 
 GPT-5.5 Thinking and Cursor AI agent.
 
-## Prompt 1: Planning
+---
+
+## AI Usage Summary
+
+AI was used as an engineering assistant for:
+- planning the implementation into vertical slices
+- reviewing the README and official requirements
+- writing TDD-first test suites
+- implementing one slice at a time
+- reviewing code quality, API contract alignment, and edge cases
+- hardening implementation details before submission
+- maintaining architectural consistency across slices
+
+All generated code was reviewed, tested, and adjusted by the developer before being committed.
+
+---
+
+## Engineering Skills Usage
+
+Reusable engineering "skills" files were used throughout the project to keep implementation consistent across slices.
+
+These skill files included:
+- NestJS architecture conventions
+- audit logging patterns
+- transactional write patterns
+- testing conventions
+- DTO validation rules
+- commit conventions
+- slice workflow rules
+- API contract alignment rules
+- review/hardening checklists
+
+The AI agent was instructed to review relevant skill files before implementing or modifying a slice in order to preserve architectural consistency and avoid regressions.
+
+---
+
+## Prompt 1: Initial Planning
 
 You are a senior backend engineer.
 
-Build a NestJS backend API based on the IssueFlow assignment.
+Review the IssueFlow assignment requirements and README.md API contract.
 
 Do not write code yet.
 
 First:
-- Identify the real product goal.
-- Clarify assumptions.
-- Reduce scope into the smallest strong backend MVP.
-- Use the README.md API table as the implementation contract.
-- Respect the assignment requirements.
-- Create a concise implementation plan.
+- identify the real product goal
+- clarify assumptions
+- reduce scope into small vertical slices
+- define the smallest strong backend MVP
+- identify risky requirements early
+- create an implementation order that keeps the app runnable after every step
 
 Focus on:
-- Core architecture
-- Database model
-- API boundaries
-- Auth/JWT flow
-- Validation strategy
-- Ticket lifecycle rules
-- Concurrency approach
-- Testing priorities
-- Small vertical slices
-- Fastest safe implementation order
+- NestJS module structure
+- database model
+- DTO validation
+- JWT authentication
+- RBAC
+- ticket lifecycle rules
+- optimistic locking
+- audit logging
+- soft delete behavior
+- test strategy
+- API contract alignment
 
-Important:
-- Prefer one polished end-to-end flow over unfinished features.
-- Keep the app runnable after every step.
-- Avoid overengineering.
-- Keep modules and files small.
-- Prioritize clean APIs, validation, auth boundaries, business rules, and tests.
-
-Return only:
+Return:
 - MVP scope
-- Vertical slices
-- Implementation order
-- Main architecture decisions
+- vertical slices
+- implementation order
+- main architecture decisions
+- key risks and tradeoffs
 
-## Prompt 2: Implementation Slice
+---
 
-You are now in implementation mode.
+## Prompt 2: TDD Slice Planning
+
+You are a senior backend engineer.
+
+We are starting a new implementation slice.
 
 Current slice:
-[DESCRIBE CURRENT SLICE]
+[SLICE NAME]
 
-Execution requirements:
-- Implement only the current slice.
-- Do not rewrite unrelated code.
-- Keep the app runnable after changes.
-- Preserve existing architecture decisions.
-- Use clear naming.
-- Keep controllers thin.
-- Put business logic in services.
-- Use DTO validation.
-- Handle realistic edge cases.
-- Avoid overengineering.
-- Prefer the smallest correct implementation first.
+Before implementation, write the test suite first using strict TDD.
+
+Requirements:
+- re-read README.md
+- re-read the official requirements document
+- review previous slices
+- review relevant engineering skill files
+- preserve existing behavior
+- do not implement production code yet
+- write tests that define the API and business contract
+- include edge cases and negative cases
+- keep tests behavior-focused and not overly coupled to internals
+
+Cover:
+- service-level behavior
+- validation rules
+- audit behavior
+- transaction behavior
+- API contract
+- e2e scenarios when relevant
+
+After writing tests:
+- report files added
+- number of tests added
+- intentionally failing tests
+- implementation gaps exposed
+- confirmation no production code was added
+
+Commit with:
+test(slice-X): add [feature] specs
+
+---
+
+## Prompt 3: Slice Implementation
+
+You are now implementing the current slice.
+
+Current slice:
+[SLICE NAME]
 
 Before coding:
-- Briefly explain the approach.
-- State which files will change.
+- read README.md
+- read the official requirements
+- read run.md
+- read prompts.md
+- review previous slices
+- review relevant engineering skill files
+- review the failing tests for this slice
+- review relevant engineering skill files
+- follow existing repository conventions
+- preserve architectural consistency between slices
+
+Implementation requirements:
+- implement only the current slice
+- do not rewrite unrelated code
+- keep controllers thin
+- keep business logic in services/domain helpers
+- preserve existing architecture
+- preserve existing API response shapes
+- use DTO validation where relevant
+- use TypeORM patterns already used in the project
+- keep audit writes transactional when state changes
+- avoid overengineering
+- keep the app runnable
 
 After coding:
-- Self-review the implementation.
-- Check for bugs or missing edge cases.
-- Suggest the next smallest vertical slice.
+- run npm run build
+- run npm test
+- run relevant e2e tests
+- self-review for bugs, missing edge cases, and README alignment
 
-## Prompt 3: Code Review
+Commit with:
+feat(slice-X): implement [feature]
+
+---
+
+## Prompt 4: Senior Code Review
 
 Review the current implementation as a senior backend engineer.
 
 Check:
 - API contract alignment
+- requirements alignment
 - NestJS architecture
 - DTO validation
-- Auth boundaries
-- Database consistency
-- Ticket lifecycle rules
-- Concurrency safety
-- Error handling
-- Test coverage
-- Overengineering
-- Unnecessary abstractions
-- Missing edge cases
+- auth/RBAC boundaries
+- database consistency
+- transaction safety
+- audit log correctness
+- soft delete behavior
+- concurrency behavior
+- test coverage
+- e2e coverage
+- overengineering
+- missing edge cases
+- documentation accuracy
 
 Return:
-- Critical issues
-- Important improvements
-- Nice-to-have improvements
-- Suggested next action
+- critical issues
+- important improvements
+- nice-to-have improvements
+- suggested next action
+
+---
+
+## Prompt 5: Production Hardening
+
+Review the implemented slice for production-readiness.
+
+Focus on:
+- correctness
+- edge cases
+- transaction boundaries
+- database query efficiency
+- validation gaps
+- brittle tests
+- documentation mismatch
+- unnecessary abstractions
+- accidental feature creep
+
+If an issue is found:
+- propose the smallest safe fix
+- preserve existing behavior
+- do not change public API contracts unless required
+- keep tests green
+- commit as fix(slice-X): [short description]
+
+---
+
+## Prompt 6: Documentation Alignment
+
+Review README.md, run.md, prompts.md, and implementation-plan.md against the actual code.
+
+Ensure:
+- no completed feature is marked as missing
+- no nonexistent feature is documented as implemented
+- setup commands match package.json
+- Docker/PostgreSQL requirements are clear
+- build/runtime/test expectations are accurate
+- AI usage is documented honestly
+- known tradeoffs are stated clearly
+
+Return:
+- documentation mismatches
+- required edits
+- final submission checklist
