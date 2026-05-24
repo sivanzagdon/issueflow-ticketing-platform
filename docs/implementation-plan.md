@@ -1330,7 +1330,7 @@ Deliverables:
 - passing test suite
 
 ## Slice 12 — Ticket Dependencies / Blockers
-Status: Planned
+Status: Completed
 
 ### Goal
 Add dependency relationships between tickets so a ticket can be blocked by other tickets.
@@ -1391,3 +1391,94 @@ Keep implementation:
 - minimal
 - production-oriented
 - aligned with slices 8–11
+
+
+Slice 13 — Attachments Lifecycle
+Status: Planned
+
+
+Goal:
+Add ticket attachment lifecycle support aligned strictly with the README contract.
+
+Scope:
+- Upload attachment metadata to a ticket
+- List ticket attachments
+- Delete attachment from ticket
+- Audit attachment create/delete actions
+- Keep all mutations transactional
+- Preserve existing API contracts and architecture style from slices 8–12
+
+Endpoints:
+POST /tickets/:ticketId/attachments
+GET /tickets/:ticketId/attachments
+DELETE /tickets/:ticketId/attachments/:attachmentId
+
+README-aligned behavior:
+POST body:
+{
+  "filename": "screenshot.png",
+  "contentType": "image/png"
+}
+
+POST response:
+{
+  "id": 1,
+  "ticketId": 12,
+  "filename": "screenshot.png",
+  "contentType": "image/png"
+}
+
+GET response:
+[
+  {
+    "id": 1,
+    "ticketId": 12,
+    "filename": "screenshot.png",
+    "contentType": "image/png"
+  }
+]
+
+DELETE:
+200 OK / 204 depending on existing project conventions
+
+Rules:
+- Ticket must exist
+- Soft-deleted tickets cannot receive attachments
+- Attachment must belong to the ticket
+- Duplicate filenames ARE allowed
+- No real file upload/storage system
+- No S3/cloudinary/filesystem integration
+- Metadata only
+- Stable ordering by attachment id ascending
+- Attachment delete removes only attachment metadata
+- Audit log CREATE/DELETE on TICKET_ATTACHMENT
+- Audit details include ticketId + attachmentId + filename
+
+Architecture expectations:
+- Attachment entity
+- DTO validation
+- Transactional mutations with manager.getRepository(...)
+- Audit inside same transaction
+- Mapper-based response shaping
+- No controller business logic
+- Keep consistency with slices 8–12 patterns
+
+Out of scope:
+- Binary file storage
+- Multipart upload
+- Presigned URLs
+- File size validation
+- Virus scanning
+- Permissions/ACLs
+- Real-time notifications
+- Versioning
+- Thumbnail generation
+
+Important:
+Before implementation:
+- Re-read README.md
+- Re-read all slice patterns from 8–12
+- Keep API contract strictly aligned with README
+- Avoid overengineering
+- Smallest clean production-quality implementation only
+
