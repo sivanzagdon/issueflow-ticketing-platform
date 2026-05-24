@@ -172,7 +172,19 @@ export class TicketsService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      const saved = await manager.getRepository(Ticket).save(ticket);
+      const ticketRepo = manager.getRepository(Ticket);
+
+      if (
+        updateTicketDto.status === TicketStatus.DONE &&
+        beforeStatus !== TicketStatus.DONE
+      ) {
+        await this.assertNoUnresolvedBlockers(
+          manager.getRepository(TicketDependency),
+          id,
+        );
+      }
+
+      const saved = await ticketRepo.save(ticket);
       const details = this.buildTicketUpdateDetails(
         beforeStatus,
         updateTicketDto,
@@ -259,6 +271,7 @@ export class TicketsService {
 
         const blocker = await ticketRepo.findOne({ where: { id: blockedBy } });
         this.assertActiveTicketForDependency(blocker, blockedBy);
+        this.assertSameProjectForDependency(ticket, blocker);
 
         const dependency = dependencyRepo.create({ ticketId, blockerId: blockedBy });
         const saved = await dependencyRepo.save(dependency);
@@ -498,6 +511,35 @@ export class TicketsService {
     id: number,
   ): asserts ticket is Ticket {
     this.assertActiveTicketForAttachment(ticket, id);
+  }
+
+  private assertSameProjectForDependency(ticket: Ticket, blocker: Ticket): void {
+    if (ticket.projectId !== blocker.projectId) {
+      throw new BadRequestException(
+        'Dependency tickets must belong to the same project',
+      );
+    }
+  }
+
+  private async assertNoUnresolvedBlockers(
+    dependencyRepo: Repository<TicketDependency>,
+    ticketId: number,
+  ): Promise<void> {
+    const unresolvedCount = await dependencyRepo.count({
+      where: {
+        ticketId,
+        blocker: {
+          deletedAt: IsNull(),
+          status: Not(TicketStatus.DONE),
+        },
+      },
+    });
+
+    if (unresolvedCount > 0) {
+      throw new BadRequestException(
+        'Cannot transition to DONE while ticket has unresolved blockers',
+      );
+    }
   }
 
   private assertActiveTicketForAttachment(

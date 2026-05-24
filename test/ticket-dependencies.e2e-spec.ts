@@ -186,6 +186,173 @@ describe('Ticket dependencies (e2e)', () => {
     });
   });
 
+  async function advanceTicketStatus(
+    token: string,
+    ticketId: number,
+    from: TicketStatus,
+    to: TicketStatus,
+  ): Promise<number> {
+    const auth = { Authorization: `Bearer ${token}` };
+    const order = [
+      TicketStatus.TODO,
+      TicketStatus.IN_PROGRESS,
+      TicketStatus.IN_REVIEW,
+      TicketStatus.DONE,
+    ];
+    let version = 1;
+    const ticketRes = await request(app.getHttpServer())
+      .get(`/tickets/${ticketId}`)
+      .set(auth)
+      .expect(200);
+    version = ticketRes.body.version as number;
+
+    const fromIdx = order.indexOf(from);
+    const toIdx = order.indexOf(to);
+    for (let i = fromIdx; i < toIdx; i += 1) {
+      const next = order[i + 1];
+      const updateRes = await request(app.getHttpServer())
+        .patch(`/tickets/${ticketId}`)
+        .set(auth)
+        .send({ version, status: next })
+        .expect(200);
+      version = updateRes.body.version as number;
+    }
+    return version;
+  }
+
+  describe('same-project constraint', () => {
+    it('rejects dependency when tickets belong to different projects', async () => {
+      const { token, userId } = await registerAndLogin();
+      const auth = { Authorization: `Bearer ${token}` };
+
+      const projectA = await request(app.getHttpServer())
+        .post('/projects')
+        .set(auth)
+        .send({ name: `Proj A ${uniqueSuffix()}`, ownerId: userId })
+        .expect(201);
+
+      const projectB = await request(app.getHttpServer())
+        .post('/projects')
+        .set(auth)
+        .send({ name: `Proj B ${uniqueSuffix()}`, ownerId: userId })
+        .expect(201);
+
+      const ticketARes = await request(app.getHttpServer())
+        .post('/tickets')
+        .set(auth)
+        .send({
+          title: 'Ticket in A',
+          status: TicketStatus.TODO,
+          priority: TicketPriority.MEDIUM,
+          type: TicketType.BUG,
+          projectId: projectA.body.id,
+          assigneeId: userId,
+        })
+        .expect(201);
+
+      const ticketBRes = await request(app.getHttpServer())
+        .post('/tickets')
+        .set(auth)
+        .send({
+          title: 'Ticket in B',
+          status: TicketStatus.TODO,
+          priority: TicketPriority.MEDIUM,
+          type: TicketType.BUG,
+          projectId: projectB.body.id,
+          assigneeId: userId,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/tickets/${ticketARes.body.id}/dependencies`)
+        .set(auth)
+        .send({ blockedBy: ticketBRes.body.id })
+        .expect(400);
+    });
+  });
+
+  describe('DONE transition with blockers', () => {
+    it('rejects DONE while blockers are unresolved and allows DONE when blockers are DONE', async () => {
+      const { token, userId } = await registerAndLogin();
+      const auth = { Authorization: `Bearer ${token}` };
+      const { ticketA, ticketB } = await createProjectAndTickets(token, userId);
+
+      await request(app.getHttpServer())
+        .post(`/tickets/${ticketA}/dependencies`)
+        .set(auth)
+        .send({ blockedBy: ticketB })
+        .expect(200);
+
+      const versionAtReview = await advanceTicketStatus(
+        token,
+        ticketA,
+        TicketStatus.TODO,
+        TicketStatus.IN_REVIEW,
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/tickets/${ticketA}`)
+        .set(auth)
+        .send({ version: versionAtReview, status: TicketStatus.DONE })
+        .expect(400);
+
+      await advanceTicketStatus(
+        token,
+        ticketB,
+        TicketStatus.IN_PROGRESS,
+        TicketStatus.DONE,
+      );
+
+      const ticketARes = await request(app.getHttpServer())
+        .get(`/tickets/${ticketA}`)
+        .set(auth)
+        .expect(200);
+
+      const doneRes = await request(app.getHttpServer())
+        .patch(`/tickets/${ticketA}`)
+        .set(auth)
+        .send({
+          version: ticketARes.body.version as number,
+          status: TicketStatus.DONE,
+        })
+        .expect(200);
+
+      expect(doneRes.body.status).toBe(TicketStatus.DONE);
+    });
+
+    it('allows DONE when blocker ticket is soft-deleted', async () => {
+      const { token, userId } = await registerAndLogin();
+      const auth = { Authorization: `Bearer ${token}` };
+      const { ticketA, ticketB } = await createProjectAndTickets(token, userId);
+
+      await request(app.getHttpServer())
+        .post(`/tickets/${ticketA}/dependencies`)
+        .set(auth)
+        .send({ blockedBy: ticketB })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .delete(`/tickets/${ticketB}`)
+        .set(auth)
+        .expect(200);
+
+      const versionAtReview = await advanceTicketStatus(
+        token,
+        ticketA,
+        TicketStatus.TODO,
+        TicketStatus.IN_REVIEW,
+      );
+
+      const doneRes = await request(app.getHttpServer())
+        .patch(`/tickets/${ticketA}`)
+        .set(auth)
+        .send({ version: versionAtReview, status: TicketStatus.DONE })
+        .expect(200);
+
+      expect(doneRes.body.status).toBe(TicketStatus.DONE);
+    });
+  });
+
   describe('soft-deleted blocker', () => {
     it('does not return soft-deleted blocker in dependency list', async () => {
       const { token, userId } = await registerAndLogin();

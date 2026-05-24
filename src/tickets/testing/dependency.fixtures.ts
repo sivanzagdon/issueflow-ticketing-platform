@@ -77,6 +77,7 @@ export function createMockDependencyRepository(): {
   save: jest.Mock;
   find: jest.Mock;
   findOne: jest.Mock;
+  count: jest.Mock;
   delete: jest.Mock;
   createQueryBuilder: jest.Mock;
 } {
@@ -89,6 +90,7 @@ export function createMockDependencyRepository(): {
     save: jest.fn().mockImplementation(async (entity) => entity),
     find: jest.fn().mockResolvedValue([]),
     findOne: jest.fn().mockResolvedValue(null),
+    count: jest.fn().mockResolvedValue(0),
     delete: jest.fn().mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] }),
     createQueryBuilder: jest.fn(),
   };

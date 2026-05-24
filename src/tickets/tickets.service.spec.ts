@@ -23,12 +23,17 @@ import {
   mockTicketResponse,
 } from './testing/ticket.fixtures';
 import { ticketAttachmentRepositoryProvider } from './testing/attachment.fixtures';
-import { ticketDependencyRepositoryProvider } from './testing/dependency.fixtures';
+import {
+  createMockDependencyRepository,
+  ticketDependencyRepositoryProvider,
+} from './testing/dependency.fixtures';
+import { TicketDependency } from './entities/ticket-dependency.entity';
 import { TicketsService } from './tickets.service';
 
 describe('TicketsService', () => {
   let service: TicketsService;
   let ticketRepository: jest.Mocked<Repository<Ticket>>;
+  let dependencyRepository: ReturnType<typeof createMockDependencyRepository>;
   let projectsService: jest.Mocked<Pick<ProjectsService, 'findOne'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'findOne'>>;
 
@@ -52,6 +57,7 @@ describe('TicketsService', () => {
       softDelete: jest.fn(),
     } as unknown as jest.Mocked<Repository<Ticket>>;
 
+    dependencyRepository = createMockDependencyRepository();
     projectsService = { findOne: jest.fn() };
     usersService = { findOne: jest.fn() };
 
@@ -73,7 +79,10 @@ describe('TicketsService', () => {
         {
           provide: DataSource,
           useValue: mockDataSourceWithRepositories(
-            new Map([[Ticket, ticketRepository]]),
+            new Map<unknown, object>([
+              [Ticket, ticketRepository],
+              [TicketDependency, dependencyRepository],
+            ]),
           ),
         },
       ],
@@ -274,6 +283,7 @@ describe('TicketsService', () => {
       const existing = mockTicketEntity({ status: TicketStatus.IN_REVIEW });
       const updated = mockTicketEntity({ status: TicketStatus.DONE });
       ticketRepository.findOne.mockResolvedValue(existing);
+      dependencyRepository.count.mockResolvedValue(0);
       ticketRepository.save.mockResolvedValue(updated);
 
       const result = await service.update(1, {

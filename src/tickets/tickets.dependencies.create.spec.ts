@@ -89,7 +89,7 @@ describe('TicketsService addDependency (Slice 12)', () => {
   const activeTicket = (id: number) =>
     mockTicketEntity({ id, deletedAt: null });
 
-  it('creates a dependency between two valid active tickets', async () => {
+  it('creates a dependency when source and blocker belong to the same project', async () => {
     ticketRepository.findOne
       .mockResolvedValueOnce(activeTicket(10))
       .mockResolvedValueOnce(activeTicket(42));
@@ -197,6 +197,21 @@ describe('TicketsService addDependency (Slice 12)', () => {
       BadRequestException,
     );
     expect(dependencyRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects when source and blocker belong to different projects', async () => {
+    ticketRepository.findOne
+      .mockResolvedValueOnce(activeTicket(10))
+      .mockResolvedValueOnce(
+        mockTicketEntity({ id: 42, projectId: 99, deletedAt: null }),
+      );
+
+    await expect(service.addDependency(10, 42, 2)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(dependencyRepository.create).not.toHaveBeenCalled();
+    expect(dependencyRepository.save).not.toHaveBeenCalled();
+    expect(auditLogService.record).not.toHaveBeenCalled();
   });
 
   it('rejects when blocker ticket is soft-deleted', async () => {

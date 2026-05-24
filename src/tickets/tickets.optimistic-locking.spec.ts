@@ -20,7 +20,11 @@ import { UsersService } from '../users/users.service';
 import { Ticket } from './entities/ticket.entity';
 import { mockTicketEntity } from './testing/ticket.fixtures';
 import { ticketAttachmentRepositoryProvider } from './testing/attachment.fixtures';
-import { ticketDependencyRepositoryProvider } from './testing/dependency.fixtures';
+import {
+  createMockDependencyRepository,
+  ticketDependencyRepositoryProvider,
+} from './testing/dependency.fixtures';
+import { TicketDependency } from './entities/ticket-dependency.entity';
 import { TicketsService } from './tickets.service';
 
 /**
@@ -29,6 +33,7 @@ import { TicketsService } from './tickets.service';
 describe('TicketsService optimistic locking (Slice 10)', () => {
   let service: TicketsService;
   let ticketRepository: jest.Mocked<Pick<Repository<Ticket>, 'findOne' | 'save'>>;
+  let dependencyRepository: ReturnType<typeof createMockDependencyRepository>;
   let auditLogService: jest.Mocked<Pick<AuditLogService, 'record' | 'buildTicketStateHistory'>>;
   let dataSource: { transaction: jest.Mock };
   let transactionalManager: ReturnType<
@@ -45,9 +50,14 @@ describe('TicketsService optimistic locking (Slice 10)', () => {
       save: jest.fn(),
     } as unknown as jest.Mocked<Pick<Repository<Ticket>, 'findOne' | 'save'>>;
 
+    dependencyRepository = createMockDependencyRepository();
+
     transactionalManager.getRepository = jest.fn((entity: unknown) => {
       if (entity === Ticket) {
         return ticketRepository;
+      }
+      if (entity === TicketDependency) {
+        return dependencyRepository;
       }
       throw new Error(`Unexpected entity: ${String(entity)}`);
     }) as unknown as typeof transactionalManager.getRepository;
