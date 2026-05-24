@@ -168,7 +168,7 @@ describe('CommentsService', () => {
         content: 'Edited',
         updatedAt: new Date('2026-02-01T00:00:00.000Z'),
       });
-      const dto: UpdateCommentDto = { content: 'Edited' };
+      const dto: UpdateCommentDto = { version: 1, content: 'Edited' };
       commentRepository.findOne.mockResolvedValue(existing);
       commentRepository.save.mockResolvedValue(updated);
 
@@ -187,7 +187,7 @@ describe('CommentsService', () => {
       commentRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.update(999, { content: 'Nope' }),
+        service.update(999, { version: 1, content: 'Nope' }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(commentRepository.save).not.toHaveBeenCalled();
     });

@@ -203,7 +203,7 @@ describe('CommentsService transactional audit (regression)', () => {
   });
 
   describe('update', () => {
-    const updateDto: UpdateCommentDto = { content: 'Updated body' };
+    const updateDto: UpdateCommentDto = { version: 1, content: 'Updated body' };
 
     it('runs comment save and audit inside dataSource.transaction', async () => {
       const existing = mockCommentEntity({ id: 4, content: 'Before' });

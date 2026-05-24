@@ -6,6 +6,7 @@ export const mockCommentEntity = (overrides: Partial<Comment> = {}): Comment => 
   ticketId: 1,
   authorId: 2,
   content: 'A thoughtful comment',
+  version: 1,
   ticket: {} as Comment['ticket'],
   author: {} as Comment['author'],
   createdAt: new Date('2026-01-01T12:00:00.000Z'),

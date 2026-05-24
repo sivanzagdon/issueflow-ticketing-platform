@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -99,6 +103,10 @@ export class CommentsService {
       });
       if (!comment) {
         throw new NotFoundException(`Comment ${commentId} not found`);
+      }
+
+      if (dto.version !== comment.version) {
+        throw new ConflictException('Comment version conflict');
       }
 
       const beforeContent = comment.content;

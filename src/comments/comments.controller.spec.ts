@@ -131,7 +131,7 @@ describe('CommentsController', () => {
 
   describe('update', () => {
     it('delegates to CommentsService.update with commentId and body', async () => {
-      const dto: UpdateCommentDto = { content: 'Revised' };
+      const dto: UpdateCommentDto = { version: 1, content: 'Revised' };
       const updated = mockCommentResponse({ content: 'Revised' });
       commentsService.update.mockResolvedValue(updated);
 

@@ -336,7 +336,7 @@ describe('Audit log domain write integration (contract)', () => {
     });
 
     it('updating comment records UPDATE audit for COMMENT entity', async () => {
-      await commentsService.update(4, { content: 'Edited' });
+      await commentsService.update(4, { version: 1, content: 'Edited' });
       expect(auditLogService.record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AuditAction.UPDATE,

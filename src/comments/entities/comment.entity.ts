@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VersionColumn,
 } from 'typeorm';
 import { Ticket } from '../../tickets/entities/ticket.entity';
 import { User } from '../../users/entities/user.entity';
@@ -33,6 +34,9 @@ export class Comment {
 
   @Column({ type: 'text' })
   content: string;
+
+  @VersionColumn({ default: 1 })
+  version: number;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
