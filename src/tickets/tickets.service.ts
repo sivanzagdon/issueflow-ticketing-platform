@@ -5,7 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Not, QueryFailedError, Repository } from 'typeorm';
+import {
+  DataSource,
+  IsNull,
+  LessThan,
+  Not,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
@@ -21,6 +28,10 @@ import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { TicketAttachment } from './entities/ticket-attachment.entity';
 import { TicketDependency } from './entities/ticket-dependency.entity';
 import { Ticket } from './entities/ticket.entity';
+import {
+  AutoEscalationSummary,
+  evaluateTicketEscalation,
+} from './ticket-escalation';
 import {
   TicketImportCsvRow,
   exportTicketsToCsv,
@@ -146,6 +157,65 @@ export class TicketsService {
     });
   }
 
+  async runAutoEscalation(now?: Date): Promise<AutoEscalationSummary> {
+    const asOf = now ?? new Date();
+    const candidates = await this.ticketRepository.find({
+      where: {
+        dueDate: LessThan(asOf),
+        status: Not(TicketStatus.DONE),
+        deletedAt: IsNull(),
+      },
+    });
+
+    const summary: AutoEscalationSummary = {
+      escalated: 0,
+      markedOverdue: 0,
+      skipped: 0,
+    };
+
+    for (const ticket of candidates) {
+      const action = evaluateTicketEscalation(ticket, asOf);
+      if (action.type === 'skip') {
+        summary.skipped += 1;
+        continue;
+      }
+
+      await this.dataSource.transaction(async (manager) => {
+        const ticketRepo = manager.getRepository(Ticket);
+        ticket.priority = action.newPriority;
+        ticket.isOverdue = action.isOverdue;
+        const saved = await ticketRepo.save(ticket);
+
+        await this.auditLogService.record(
+          {
+            action: AuditAction.AUTO_ESCALATE,
+            entityType: AuditEntityType.TICKET,
+            entityId: saved.id,
+            performedBy: null,
+            actorType: AuditActor.SYSTEM,
+            details: {
+              ticketId: saved.id,
+              previousPriority: action.previousPriority,
+              newPriority: action.newPriority,
+              dueDate: saved.dueDate,
+              isOverdue: saved.isOverdue,
+              reason: action.reason,
+            },
+          },
+          manager,
+        );
+      });
+
+      if (action.type === 'escalate') {
+        summary.escalated += 1;
+      } else {
+        summary.markedOverdue += 1;
+      }
+    }
+
+    return summary;
+  }
+
   async findAll(projectId: number): Promise<TicketResponse[]> {
     const tickets = await this.ticketRepository.find({
       where: { projectId },
@@ -200,6 +270,7 @@ export class TicketsService {
     }
     if (updateTicketDto.priority !== undefined) {
       ticket.priority = updateTicketDto.priority;
+      ticket.isOverdue = false;
     }
     if (updateTicketDto.dueDate !== undefined) {
       ticket.dueDate = updateTicketDto.dueDate

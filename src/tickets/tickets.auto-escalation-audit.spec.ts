@@ -53,15 +53,14 @@ describe('TicketsService auto-escalation audit (Slice 16)', () => {
       ([input]) => input.action === AUDIT_ACTION_AUTO_ESCALATE,
     );
     expect(autoEscalateCalls).toHaveLength(1);
-    expectAutoEscalateAuditPayload(autoEscalateCalls[0][0] as Record<string, unknown>);
-    expectTransactionalAuditCall(
-      auditLogService.record,
-      expect.objectContaining({
-        action: AUDIT_ACTION_AUTO_ESCALATE,
-        entityType: AuditEntityType.TICKET,
-        entityId: 30,
-      }),
+    expectAutoEscalateAuditPayload(
+      autoEscalateCalls[0][0] as unknown as Record<string, unknown>,
     );
+    expectTransactionalAuditCall(auditLogService, transactionalManager, {
+      action: AUDIT_ACTION_AUTO_ESCALATE,
+      entityType: AuditEntityType.TICKET,
+      entityId: 30,
+    });
   });
 
   it('includes previousPriority, newPriority, ticket id, and reason in audit details', async () => {
@@ -111,9 +110,7 @@ describe('TicketsService auto-escalation audit (Slice 16)', () => {
     ticketRepository.find.mockResolvedValue([
       overdueTicket({ id: 32, priority: TicketPriority.LOW }),
     ]);
-    auditLogService.record
-      .mockResolvedValueOnce(mockAuditLogResponse({ id: 1 }))
-      .mockRejectedValueOnce(new Error('audit failed'));
+    auditLogService.record.mockRejectedValueOnce(new Error('audit failed'));
 
     await expect(
       (service as TicketsServiceSlice16).runAutoEscalation(SLICE16_FIXED_NOW),
