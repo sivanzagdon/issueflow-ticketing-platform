@@ -5,6 +5,7 @@ import { UpdateCommentDto } from './update-comment.dto';
 
 describe('UpdateCommentDto', () => {
   const validPayload = {
+    version: 1,
     content: 'Updated comment text.',
   };
 
@@ -26,9 +27,36 @@ describe('UpdateCommentDto', () => {
   });
 
   it('rejects missing content', async () => {
-    const errors = await validateDto({});
+    const errors = await validateDto({ version: 1 });
 
     expect(errors.some((e) => e.property === 'content')).toBe(true);
+  });
+
+  it('rejects payload without version', async () => {
+    const errors = await validateDto({ content: 'Updated comment text.' });
+
+    expect(errors.some((e) => e.property === 'version')).toBe(true);
+  });
+
+  it('rejects non-number version', async () => {
+    const errors = await validateDto({
+      version: 'one',
+      content: 'Updated comment text.',
+    });
+
+    expect(errors.some((e) => e.property === 'version')).toBe(true);
+  });
+
+  it('rejects zero version', async () => {
+    const errors = await validateDto({ version: 0, content: 'Updated comment text.' });
+
+    expect(errors.some((e) => e.property === 'version')).toBe(true);
+  });
+
+  it('rejects negative version', async () => {
+    const errors = await validateDto({ version: -1, content: 'Updated comment text.' });
+
+    expect(errors.some((e) => e.property === 'version')).toBe(true);
   });
 
   it('rejects unknown fields when validated through global ValidationPipe settings', async () => {

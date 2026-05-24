@@ -32,6 +32,27 @@ describe('UpdateTicketDto', () => {
     expect(errors.some((e) => e.property === 'version')).toBe(true);
   });
 
+  it('rejects non-number version', async () => {
+    const errors = await validateDto({
+      version: 'one',
+      title: 'Updated title',
+    });
+
+    expect(errors.some((e) => e.property === 'version')).toBe(true);
+  });
+
+  it('rejects zero version', async () => {
+    const errors = await validateDto({ version: 0, title: 'Updated title' });
+
+    expect(errors.some((e) => e.property === 'version')).toBe(true);
+  });
+
+  it('rejects negative version', async () => {
+    const errors = await validateDto({ version: -1, title: 'Updated title' });
+
+    expect(errors.some((e) => e.property === 'version')).toBe(true);
+  });
+
   it('rejects empty title when provided', async () => {
     const errors = await validateDto({ version: 1, title: '' });
 
