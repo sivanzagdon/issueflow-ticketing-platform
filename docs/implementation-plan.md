@@ -1172,7 +1172,7 @@ Deliverables:
 - passing test suite
 
 ### Slice 11 — @Mention Mechanism in Comments
-Status: Planned
+Status: Completed
 
 Goal:
 Implement @username mentions inside comments, persist mention associations, and expose mentioned-user metadata in comment responses according to the README and assignment requirements.
@@ -1328,3 +1328,66 @@ Deliverables:
 - unit tests
 - e2e tests
 - passing test suite
+
+## Slice 12 — Ticket Dependencies / Blockers
+Status: Planned
+
+### Goal
+Add dependency relationships between tickets so a ticket can be blocked by other tickets.
+
+### Endpoints
+
+POST /tickets/:ticketId/dependencies  
+GET /tickets/:ticketId/dependencies  
+DELETE /tickets/:ticketId/dependencies/:blockerTicketId
+
+### Rules
+- both tickets must exist
+- ticket cannot depend on itself
+- duplicate dependency rejected
+- deleted tickets cannot participate
+- blockers list excludes deleted tickets
+
+### Data model
+Add:
+TicketDependency
+
+Fields:
+- id
+- ticketId
+- blockerTicketId
+- createdAt
+
+Constraints:
+- unique(ticketId, blockerTicketId)
+- ticketId != blockerTicketId
+
+### Behavior
+- add/remove dependency inside transaction
+- audit written in same transaction
+- manager repositories only inside transaction
+- rollback consistency preserved
+
+### Audit
+Add dependency:
+- AuditAction.CREATE
+- AuditEntityType.TICKET_DEPENDENCY
+
+Remove dependency:
+- AuditAction.DELETE
+- AuditEntityType.TICKET_DEPENDENCY
+
+### Out of scope
+- recursive dependency graphs
+- websocket notifications
+- auto-unblock workflows
+- status propagation
+- SLA logic
+
+### Quality bar
+Keep implementation:
+- transactional
+- clean
+- minimal
+- production-oriented
+- aligned with slices 8–11
