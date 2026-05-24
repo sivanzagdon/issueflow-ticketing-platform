@@ -287,6 +287,12 @@ describe('Audit log domain write integration (contract)', () => {
         findOne: jest.fn().mockResolvedValue(mockCommentEntity({ id: 4 })),
         remove: jest.fn(),
       };
+      const ticketRepository = {
+        findOne: jest.fn().mockResolvedValue(mockTicketEntity({ id: 1 })),
+      };
+      const userRepository = {
+        findOne: jest.fn().mockResolvedValue(mockUserEntity({ id: 2 })),
+      };
       const module = await Test.createTestingModule({
         providers: [
           CommentsService,
@@ -303,7 +309,11 @@ describe('Audit log domain write integration (contract)', () => {
           {
             provide: DataSource,
             useValue: mockDataSourceWithRepositories(
-              new Map([[Comment, commentRepository]]),
+              new Map<unknown, object>([
+                [Comment, commentRepository],
+                [Ticket, ticketRepository],
+                [User, userRepository],
+              ]),
             ),
           },
         ],

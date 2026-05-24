@@ -10,9 +10,11 @@ import {
   createMockTransactionalContext,
   expectTransactionalAuditCall,
 } from '../audit-log/testing/transaction-test.helpers';
-import { mockTicketResponse } from '../tickets/testing/ticket.fixtures';
+import { mockTicketEntity } from '../tickets/testing/ticket.fixtures';
+import { Ticket } from '../tickets/entities/ticket.entity';
+import { mockUserEntity } from '../users/testing/user.fixtures';
+import { User } from '../users/entities/user.entity';
 import { TicketsService } from '../tickets/tickets.service';
-import { mockUserResponse } from '../users/testing/user.fixtures';
 import { UsersService } from '../users/users.service';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -30,6 +32,8 @@ describe('CommentsService transactional audit (regression)', () => {
   let commentRepository: jest.Mocked<
     Pick<Repository<Comment>, 'create' | 'save' | 'findOne' | 'remove'>
   >;
+  let ticketRepository: jest.Mocked<Pick<Repository<Ticket>, 'findOne'>>;
+  let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne'>>;
   let auditLogService: jest.Mocked<Pick<AuditLogService, 'record'>>;
   let ticketsService: jest.Mocked<Pick<TicketsService, 'findOne'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'findOne'>>;
@@ -51,6 +55,8 @@ describe('CommentsService transactional audit (regression)', () => {
       Pick<Repository<Comment>, 'create' | 'save' | 'findOne' | 'remove'>
     >;
 
+    ticketRepository = { findOne: jest.fn() };
+    userRepository = { findOne: jest.fn() };
     auditLogService = { record: jest.fn().mockResolvedValue({ id: 1 }) };
     ticketsService = { findOne: jest.fn() };
     usersService = { findOne: jest.fn() };
@@ -61,6 +67,12 @@ describe('CommentsService transactional audit (regression)', () => {
     transactionalManager.getRepository = jest.fn((entity: unknown) => {
       if (entity === Comment) {
         return commentRepository;
+      }
+      if (entity === Ticket) {
+        return ticketRepository;
+      }
+      if (entity === User) {
+        return userRepository;
       }
       throw new Error(`Unexpected entity: ${String(entity)}`);
     }) as unknown as typeof transactionalManager.getRepository;
@@ -81,11 +93,8 @@ describe('CommentsService transactional audit (regression)', () => {
 
   describe('create', () => {
     beforeEach(() => {
-      ticketsService.findOne.mockResolvedValue({
-        ...mockTicketResponse({ id: 1 }),
-        stateHistory: [],
-      });
-      usersService.findOne.mockResolvedValue(mockUserResponse({ id: 2 }));
+      ticketRepository.findOne.mockResolvedValue(mockTicketEntity({ id: 1 }));
+      userRepository.findOne.mockResolvedValue(mockUserEntity({ id: 2 }));
     });
 
     it('runs comment persistence and audit inside dataSource.transaction', async () => {
@@ -121,6 +130,12 @@ describe('CommentsService transactional audit (regression)', () => {
         if (entityArg === Comment) {
           return transactionalRepo;
         }
+        if (entityArg === Ticket) {
+          return ticketRepository;
+        }
+        if (entityArg === User) {
+          return userRepository;
+        }
         throw new Error(`Unexpected entity: ${String(entityArg)}`);
       }) as unknown as typeof transactionalManager.getRepository;
 
@@ -148,13 +163,13 @@ describe('CommentsService transactional audit (regression)', () => {
         callOrder.push('transaction');
         return work(transactionalManager);
       });
-      ticketsService.findOne.mockImplementation(async () => {
+      ticketRepository.findOne.mockImplementation(async () => {
         callOrder.push('ticketValidation');
-        return { ...mockTicketResponse({ id: 1 }), stateHistory: [] };
+        return mockTicketEntity({ id: 1 });
       });
-      usersService.findOne.mockImplementation(async () => {
+      userRepository.findOne.mockImplementation(async () => {
         callOrder.push('authorValidation');
-        return mockUserResponse({ id: 2 });
+        return mockUserEntity({ id: 2 });
       });
 
       await service.create(1, createDto);
@@ -331,7 +346,7 @@ describe('CommentsService transactional audit (regression)', () => {
       commentRepository.findOne.mockResolvedValue(null);
 
       await expect(service.remove(999, 2)).rejects.toBeInstanceOf(NotFoundException);
-      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
       expect(auditLogService.record).not.toHaveBeenCalled();
     });
   });

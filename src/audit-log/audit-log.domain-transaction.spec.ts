@@ -386,6 +386,8 @@ describe('Audit log domain transactional writes (contract)', () => {
   describe('CommentsService', () => {
     let commentsService: CommentsService;
     let commentRepository: jest.Mocked<Repository<Comment>>;
+    let ticketRepository: jest.Mocked<Pick<Repository<Ticket>, 'findOne'>>;
+    let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne'>>;
 
     beforeEach(async () => {
       commentRepository = {
@@ -396,10 +398,24 @@ describe('Audit log domain transactional writes (contract)', () => {
         remove: jest.fn(),
       } as unknown as jest.Mocked<Repository<Comment>>;
 
+      ticketRepository = {
+        findOne: jest.fn().mockResolvedValue(mockTicketEntity({ id: 1 })),
+      } as unknown as jest.Mocked<Pick<Repository<Ticket>, 'findOne'>>;
+
+      userRepository = {
+        findOne: jest.fn().mockResolvedValue(mockUserEntity({ id: 2 })),
+      } as unknown as jest.Mocked<Pick<Repository<User>, 'findOne'>>;
+
       commentRepository.create.mockReturnValue(mockCommentEntity());
       manager.getRepository = jest.fn((entity: unknown) => {
         if (entity === Comment) {
           return commentRepository;
+        }
+        if (entity === Ticket) {
+          return ticketRepository;
+        }
+        if (entity === User) {
+          return userRepository;
         }
         throw new Error(`Unexpected entity: ${String(entity)}`);
       }) as typeof manager.getRepository;

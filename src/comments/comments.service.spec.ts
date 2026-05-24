@@ -3,9 +3,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { mockDataSourceWithRepositories } from '../audit-log/testing/transaction-test.helpers';
-import { mockTicketResponse } from '../tickets/testing/ticket.fixtures';
+import { mockTicketEntity, mockTicketResponse } from '../tickets/testing/ticket.fixtures';
+import { Ticket } from '../tickets/entities/ticket.entity';
 import { TicketsService } from '../tickets/tickets.service';
-import { mockUserResponse } from '../users/testing/user.fixtures';
+import { mockUserEntity } from '../users/testing/user.fixtures';
+import { User } from '../users/entities/user.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { UsersService } from '../users/users.service';
 import { CommentsService } from './comments.service';
@@ -25,6 +27,8 @@ describe('CommentsService', () => {
       'create' | 'save' | 'find' | 'findOne' | 'remove'
     >
   >;
+  let ticketRepository: jest.Mocked<Pick<Repository<Ticket>, 'findOne'>>;
+  let userRepository: jest.Mocked<Pick<Repository<User>, 'findOne'>>;
   let ticketsService: jest.Mocked<Pick<TicketsService, 'findOne'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'findOne'>>;
 
@@ -47,6 +51,8 @@ describe('CommentsService', () => {
       >
     >;
 
+    ticketRepository = { findOne: jest.fn() };
+    userRepository = { findOne: jest.fn() };
     ticketsService = { findOne: jest.fn() };
     usersService = { findOne: jest.fn() };
 
@@ -63,7 +69,11 @@ describe('CommentsService', () => {
         {
           provide: DataSource,
           useValue: mockDataSourceWithRepositories(
-            new Map([[Comment, commentRepository]]),
+            new Map<unknown, object>([
+              [Comment, commentRepository],
+              [Ticket, ticketRepository],
+              [User, userRepository],
+            ]),
           ),
         },
       ],
@@ -75,18 +85,17 @@ describe('CommentsService', () => {
   describe('create', () => {
     it('creates comment when ticket exists and author exists', async () => {
       const entity = mockCommentEntity();
-      ticketsService.findOne.mockResolvedValue({
-        ...mockTicketResponse({ id: 1 }),
-        stateHistory: [],
-      });
-      usersService.findOne.mockResolvedValue(mockUserResponse({ id: 2 }));
+      ticketRepository.findOne.mockResolvedValue(mockTicketEntity({ id: 1 }));
+      userRepository.findOne.mockResolvedValue(mockUserEntity({ id: 2 }));
       commentRepository.create.mockReturnValue(entity);
       commentRepository.save.mockResolvedValue(entity);
 
       const result = await service.create(1, baseCreateDto);
 
-      expect(ticketsService.findOne).toHaveBeenCalledWith(1);
-      expect(usersService.findOne).toHaveBeenCalledWith(baseCreateDto.authorId);
+      expect(ticketRepository.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: baseCreateDto.authorId },
+      });
       expect(commentRepository.create).toHaveBeenCalled();
       expect(commentRepository.save).toHaveBeenCalled();
       expect(result).toMatchObject({
@@ -101,25 +110,18 @@ describe('CommentsService', () => {
     });
 
     it('rejects create when ticket does not exist with NotFoundException', async () => {
-      ticketsService.findOne.mockRejectedValue(
-        new NotFoundException('Ticket 99 not found'),
-      );
+      ticketRepository.findOne.mockResolvedValue(null);
 
       await expect(service.create(99, baseCreateDto)).rejects.toBeInstanceOf(
         NotFoundException,
       );
-      expect(usersService.findOne).not.toHaveBeenCalled();
+      expect(userRepository.findOne).not.toHaveBeenCalled();
       expect(commentRepository.save).not.toHaveBeenCalled();
     });
 
     it('rejects create when author does not exist with NotFoundException', async () => {
-      ticketsService.findOne.mockResolvedValue({
-        ...mockTicketResponse(),
-        stateHistory: [],
-      });
-      usersService.findOne.mockRejectedValue(
-        new NotFoundException('User 2 not found'),
-      );
+      ticketRepository.findOne.mockResolvedValue(mockTicketEntity({ id: 1 }));
+      userRepository.findOne.mockResolvedValue(null);
 
       await expect(service.create(1, baseCreateDto)).rejects.toBeInstanceOf(
         NotFoundException,

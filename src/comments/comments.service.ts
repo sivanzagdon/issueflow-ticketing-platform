@@ -5,7 +5,9 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
 import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
+import { Ticket } from '../tickets/entities/ticket.entity';
 import { TicketsService } from '../tickets/tickets.service';
+import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { CommentResponse, toCommentResponse } from './comments.mapper';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -27,10 +29,21 @@ export class CommentsService {
     ticketId: number,
     dto: CreateCommentDto,
   ): Promise<CommentResponse> {
-    await this.ticketsService.findOne(ticketId);
-    await this.usersService.findOne(dto.authorId);
-
     return this.dataSource.transaction(async (manager) => {
+      const ticket = await manager.getRepository(Ticket).findOne({
+        where: { id: ticketId },
+      });
+      if (!ticket) {
+        throw new NotFoundException(`Ticket ${ticketId} not found`);
+      }
+
+      const author = await manager.getRepository(User).findOne({
+        where: { id: dto.authorId },
+      });
+      if (!author) {
+        throw new NotFoundException(`User ${dto.authorId} not found`);
+      }
+
       const commentRepo = manager.getRepository(Comment);
       const comment = commentRepo.create({
         ticketId,
@@ -79,18 +92,18 @@ export class CommentsService {
     dto: UpdateCommentDto,
     performedBy?: number,
   ): Promise<CommentResponse> {
-    const comment = await this.commentRepository.findOne({
-      where: { id: commentId },
-    });
-    if (!comment) {
-      throw new NotFoundException(`Comment ${commentId} not found`);
-    }
-
-    const beforeContent = comment.content;
-    comment.content = dto.content;
-
     return this.dataSource.transaction(async (manager) => {
-      const saved = await manager.getRepository(Comment).save(comment);
+      const commentRepo = manager.getRepository(Comment);
+      const comment = await commentRepo.findOne({
+        where: { id: commentId },
+      });
+      if (!comment) {
+        throw new NotFoundException(`Comment ${commentId} not found`);
+      }
+
+      const beforeContent = comment.content;
+      comment.content = dto.content;
+      const saved = await commentRepo.save(comment);
 
       await this.auditLogService.record(
         {
@@ -111,15 +124,16 @@ export class CommentsService {
   }
 
   async remove(commentId: number, performedBy?: number): Promise<void> {
-    const comment = await this.commentRepository.findOne({
-      where: { id: commentId },
-    });
-    if (!comment) {
-      throw new NotFoundException(`Comment ${commentId} not found`);
-    }
-
     await this.dataSource.transaction(async (manager) => {
-      await manager.getRepository(Comment).remove(comment);
+      const commentRepo = manager.getRepository(Comment);
+      const comment = await commentRepo.findOne({
+        where: { id: commentId },
+      });
+      if (!comment) {
+        throw new NotFoundException(`Comment ${commentId} not found`);
+      }
+
+      await commentRepo.remove(comment);
       await this.auditLogService.record(
         {
           action: AuditAction.DELETE,
