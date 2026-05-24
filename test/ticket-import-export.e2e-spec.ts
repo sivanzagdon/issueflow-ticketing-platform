@@ -94,7 +94,7 @@ describe('Ticket import/export (e2e)', () => {
       .post('/tickets')
       .set(auth)
       .send({ projectId, ...body })
-      .expect(200);
+      .expect(201);
     return ticketRes.body.id as number;
   }
 
@@ -330,6 +330,69 @@ describe('Ticket import/export (e2e)', () => {
 
       expect(res.body.failed).toBeGreaterThan(0);
       expect(res.body.created).toBe(0);
+    });
+
+    it('returns 400 for non-CSV mimetype before parsing', async () => {
+      const { token, userId } = await registerAndLogin();
+      const projectId = await createProject(token, userId);
+      const csv = buildImportCsv([]);
+
+      const res = await request(app.getHttpServer())
+        .post('/tickets/import')
+        .set({ Authorization: `Bearer ${token}` })
+        .field('projectId', String(projectId))
+        .attach('file', Buffer.from(csv), {
+          filename: 'not-csv.png',
+          contentType: 'image/png',
+        })
+        .expect(400);
+
+      expect(String(res.body.message)).toMatch(/CSV upload/i);
+    });
+
+    it('returns 400 for non-CSV extension with generic text mimetype', async () => {
+      const { token, userId } = await registerAndLogin();
+      const projectId = await createProject(token, userId);
+
+      await request(app.getHttpServer())
+        .post('/tickets/import')
+        .set({ Authorization: `Bearer ${token}` })
+        .field('projectId', String(projectId))
+        .attach(
+          'file',
+          Buffer.from('title,description,status,priority,type,assigneeId\n'),
+          {
+            filename: 'notes.txt',
+            contentType: 'text/plain',
+          },
+        )
+        .expect(400);
+    });
+
+    it('accepts generic mimetype when filename ends with .csv', async () => {
+      const { token, userId } = await registerAndLogin();
+      const projectId = await createProject(token, userId);
+      const csv = buildImportCsv([
+        buildImportCsvRow({
+          title: `Mime fallback ${uniqueSuffix()}`,
+          status: TicketStatus.TODO,
+          priority: TicketPriority.MEDIUM,
+          type: TicketType.FEATURE,
+        }),
+      ]);
+
+      const res = await request(app.getHttpServer())
+        .post('/tickets/import')
+        .set({ Authorization: `Bearer ${token}` })
+        .field('projectId', String(projectId))
+        .attach('file', Buffer.from(csv), {
+          filename: 'import.csv',
+          contentType: 'application/octet-stream',
+        })
+        .expect(200);
+
+      expectTicketImportResultShape(res.body);
+      expect(res.body.created).toBe(1);
     });
   });
 

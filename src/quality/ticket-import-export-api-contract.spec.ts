@@ -114,13 +114,26 @@ describe('Ticket import/export API contract (Slice 14)', () => {
     });
 
     it('uses csv-parse and csv-stringify for deterministic CSV handling', () => {
-      expect(ticketsServiceSource).toMatch(/csv-parse|csv-stringify/);
+      const ticketCsvSource = readFileSync(
+        join(__dirname, '../tickets/ticket-csv.ts'),
+        'utf8',
+      );
+      expect(ticketCsvSource).toMatch(/csv-parse/);
+      expect(ticketCsvSource).toMatch(/csv-stringify/);
     });
 
     it('uses multipart upload with FileInterceptor on import', () => {
+      const uploadConfigSource = readFileSync(
+        join(__dirname, '../tickets/ticket-import-upload.config.ts'),
+        'utf8',
+      );
       expect(ticketsControllerSource).toMatch(/FileInterceptor\('file'\)/);
       expect(ticketsControllerSource).toMatch(/UploadedFile/);
       expect(ticketsControllerSource).toMatch(/importTickets/);
+      expect(ticketsControllerSource).toMatch(/ParseFilePipe/);
+      expect(ticketsControllerSource).toMatch(/ticketImportUploadValidators/);
+      expect(uploadConfigSource).toMatch(/TicketCsvFileValidator/);
+      expect(uploadConfigSource).toMatch(/MaxFileSizeValidator/);
     });
 
     it('returns raw CSV from export handler', () => {

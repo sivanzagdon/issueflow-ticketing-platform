@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { mockDataSourceWithRepositories } from '../audit-log/testing/transaction-test.helpers';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { TicketPriority } from '../common/enums/ticket-priority.enum';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
@@ -10,8 +11,16 @@ import { UsersService } from '../users/users.service';
 import { mockProjectResponse } from '../projects/testing/project.fixtures';
 import { mockUserResponse } from '../users/testing/user.fixtures';
 import { Ticket } from './entities/ticket.entity';
-import { ticketAttachmentRepositoryProvider } from './testing/attachment.fixtures';
-import { ticketDependencyRepositoryProvider } from './testing/dependency.fixtures';
+import {
+  createMockAttachmentRepository,
+  ticketAttachmentRepositoryProvider,
+} from './testing/attachment.fixtures';
+import {
+  createMockDependencyRepository,
+  ticketDependencyRepositoryProvider,
+} from './testing/dependency.fixtures';
+import { TicketAttachment } from './entities/ticket-attachment.entity';
+import { TicketDependency } from './entities/ticket-dependency.entity';
 import {
   buildImportCsv,
   buildImportCsvRow,
@@ -59,7 +68,16 @@ describe('TicketsService importTicketsFromCsv persistence (Slice 14)', () => {
         },
         { provide: UsersService, useValue: usersService },
         { provide: AuditLogService, useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) } },
-        { provide: DataSource, useValue: { transaction: jest.fn() } },
+        {
+          provide: DataSource,
+          useValue: mockDataSourceWithRepositories(
+            new Map<unknown, object>([
+              [Ticket, ticketRepository],
+              [TicketDependency, createMockDependencyRepository()],
+              [TicketAttachment, createMockAttachmentRepository()],
+            ]),
+          ),
+        },
       ],
     }).compile();
 
@@ -158,7 +176,7 @@ describe('TicketsService importTicketsFromCsv persistence (Slice 14)', () => {
     );
   });
 
-  it('applies existing ticket defaults for version and soft-delete fields', async () => {
+  it('applies existing ticket defaults for soft-delete and optional fields', async () => {
     const csv = buildImportCsv([
       buildImportCsvRow({
         title: 'Defaults check',
@@ -172,8 +190,8 @@ describe('TicketsService importTicketsFromCsv persistence (Slice 14)', () => {
 
     expect(ticketRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        version: 1,
         deletedAt: null,
+        dueDate: null,
       }),
     );
   });

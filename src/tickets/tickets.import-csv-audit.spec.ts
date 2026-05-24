@@ -112,7 +112,7 @@ describe('TicketsService importTicketsFromCsv audit (Slice 14)', () => {
     expect(auditLogService.record).toHaveBeenCalledTimes(2);
     expectTransactionalAuditCall(auditLogService, transactionalManager, {
       action: AuditAction.CREATE,
-      actor: AuditActor.USER,
+      actorType: AuditActor.USER,
       entityType: AuditEntityType.TICKET,
       performedBy: 42,
     });

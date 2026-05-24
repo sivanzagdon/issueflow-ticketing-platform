@@ -1,26 +1,16 @@
 import { TicketPriority } from '../../common/enums/ticket-priority.enum';
 import { TicketStatus } from '../../common/enums/ticket-status.enum';
 import { TicketType } from '../../common/enums/ticket-type.enum';
+import {
+  TICKET_EXPORT_CSV_HEADER,
+  TICKET_IMPORT_CSV_HEADER,
+} from '../ticket-csv';
 
-/** README export CSV header (exact order). */
-export const TICKET_EXPORT_CSV_HEADER =
-  'id,title,description,status,priority,type,assigneeId';
+export { TICKET_EXPORT_CSV_HEADER, TICKET_IMPORT_CSV_HEADER };
 
-/** Import CSV header — new tickets only; projectId comes from form field. */
-export const TICKET_IMPORT_CSV_HEADER =
-  'title,description,status,priority,type,assigneeId';
+import type { TicketImportResult, TicketImportRowError } from '../ticket-csv';
 
-export type TicketImportRowError = {
-  row: number;
-  message: string;
-};
-
-/** README POST /tickets/import response shape. */
-export type TicketImportResult = {
-  created: number;
-  failed: number;
-  errors: TicketImportRowError[];
-};
+export type { TicketImportResult, TicketImportRowError };
 
 export const mockImportResult = (
   overrides: Partial<TicketImportResult> = {},

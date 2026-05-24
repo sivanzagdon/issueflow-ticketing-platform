@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { mockDataSourceWithRepositories } from '../audit-log/testing/transaction-test.helpers';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { TicketPriority } from '../common/enums/ticket-priority.enum';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
@@ -11,8 +12,16 @@ import { UsersService } from '../users/users.service';
 import { mockProjectResponse } from '../projects/testing/project.fixtures';
 import { mockUserResponse } from '../users/testing/user.fixtures';
 import { Ticket } from './entities/ticket.entity';
-import { ticketAttachmentRepositoryProvider } from './testing/attachment.fixtures';
-import { ticketDependencyRepositoryProvider } from './testing/dependency.fixtures';
+import {
+  createMockAttachmentRepository,
+  ticketAttachmentRepositoryProvider,
+} from './testing/attachment.fixtures';
+import {
+  createMockDependencyRepository,
+  ticketDependencyRepositoryProvider,
+} from './testing/dependency.fixtures';
+import { TicketAttachment } from './entities/ticket-attachment.entity';
+import { TicketDependency } from './entities/ticket-dependency.entity';
 import {
   buildImportCsv,
   buildImportCsvRow,
@@ -64,7 +73,16 @@ describe('TicketsService importTicketsFromCsv validation (Slice 14)', () => {
         },
         { provide: UsersService, useValue: usersService },
         { provide: AuditLogService, useValue: { record: jest.fn().mockResolvedValue({ id: 1 }) } },
-        { provide: DataSource, useValue: { transaction: jest.fn() } },
+        {
+          provide: DataSource,
+          useValue: mockDataSourceWithRepositories(
+            new Map<unknown, object>([
+              [Ticket, ticketRepository],
+              [TicketDependency, createMockDependencyRepository()],
+              [TicketAttachment, createMockAttachmentRepository()],
+            ]),
+          ),
+        },
       ],
     }).compile();
 
@@ -82,9 +100,12 @@ describe('TicketsService importTicketsFromCsv validation (Slice 14)', () => {
     );
     expect(result.created).toBe(0);
     expect(result.failed).toBe(1);
-    expect(result.errors[0]?.message).toEqual(
-      typeof matcher === 'string' ? expect.stringContaining(matcher) : matcher,
-    );
+    const message = result.errors[0]?.message ?? '';
+    if (typeof matcher === 'string') {
+      expect(message).toContain(matcher);
+    } else {
+      expect(message).toMatch(matcher);
+    }
   };
 
   it.each([

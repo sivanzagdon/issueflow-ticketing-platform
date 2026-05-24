@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -26,6 +27,7 @@ import { AddTicketDependencyDto } from './dto/add-ticket-dependency.dto';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { ticketAttachmentUploadValidators } from './ticket-attachment-upload.config';
+import { ticketImportUploadValidators } from './ticket-import-upload.config';
 import { TicketsService } from './tickets.service';
 
 @UseGuards(JwtAuthGuard)
@@ -46,6 +48,33 @@ export class TicketsController {
   @Roles(UserRole.ADMIN)
   findAllDeleted(@Query('projectId', ParseIntPipe) projectId: number) {
     return this.ticketsService.findAllDeleted(projectId);
+  }
+
+  @Get('export')
+  @HttpCode(HttpStatus.OK)
+  @Header('Content-Type', 'text/csv')
+  exportTickets(@Query('projectId', ParseIntPipe) projectId: number) {
+    return this.ticketsService.exportTicketsCsv(projectId);
+  }
+
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  importTickets(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: ticketImportUploadValidators(),
+      }),
+    )
+    file: Express.Multer.File,
+    @Body('projectId', ParseIntPipe) projectId: number,
+    @Req() req: { user: AuthenticatedUser },
+  ) {
+    return this.ticketsService.importTicketsFromCsv(
+      projectId,
+      file,
+      req.user.id,
+    );
   }
 
   @Get()

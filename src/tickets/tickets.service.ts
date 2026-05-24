@@ -10,7 +10,9 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
 import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
+import { TicketPriority } from '../common/enums/ticket-priority.enum';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
+import { TicketType } from '../common/enums/ticket-type.enum';
 import { ProjectsService } from '../projects/projects.service';
 import { UsersService } from '../users/users.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
@@ -18,6 +20,15 @@ import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { TicketAttachment } from './entities/ticket-attachment.entity';
 import { TicketDependency } from './entities/ticket-dependency.entity';
 import { Ticket } from './entities/ticket.entity';
+import {
+  TicketImportCsvRow,
+  exportTicketsToCsv,
+  isTicketPriorityValue,
+  isTicketStatusValue,
+  isTicketTypeValue,
+  parseTicketImportCsv,
+} from './ticket-csv';
+import { TicketImportResult } from './ticket-csv';
 import {
   TicketAttachmentResponse,
   TicketBlockerSummary,
@@ -446,6 +457,64 @@ export class TicketsService {
     });
   }
 
+  async exportTicketsCsv(projectId: number): Promise<string> {
+    await this.projectsService.findOne(projectId);
+
+    const tickets = await this.ticketRepository.find({
+      where: { projectId, deletedAt: IsNull() },
+      order: { id: 'ASC' },
+    });
+
+    return exportTicketsToCsv(tickets);
+  }
+
+  async importTicketsFromCsv(
+    projectId: number,
+    file: Express.Multer.File,
+    performedBy?: number,
+  ): Promise<TicketImportResult> {
+    await this.projectsService.findOne(projectId);
+
+    let rows: TicketImportCsvRow[];
+    try {
+      rows = parseTicketImportCsv(file.buffer);
+    } catch (error) {
+      return {
+        created: 0,
+        failed: 1,
+        errors: [
+          {
+            row: 1,
+            message: this.importRowErrorMessage(error),
+          },
+        ],
+      };
+    }
+
+    const result: TicketImportResult = {
+      created: 0,
+      failed: 0,
+      errors: [],
+    };
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const rowNumber = index + 2;
+      try {
+        const rowData = await this.resolveImportRow(rows[index]);
+        await this.persistImportedTicket(projectId, rowData, performedBy);
+        result.created += 1;
+      } catch (error) {
+        result.failed += 1;
+        result.errors.push({
+          row: rowNumber,
+          message: this.importRowErrorMessage(error),
+        });
+      }
+    }
+
+    return result;
+  }
+
   async remove(id: number, performedBy?: number): Promise<void> {
     const ticket = await this.getTicketOrThrow(id);
 
@@ -572,6 +641,125 @@ export class TicketsService {
     }
 
     return [...byId.values()].sort((a, b) => a.id - b.id);
+  }
+
+  private async resolveImportRow(
+    row: TicketImportCsvRow,
+  ): Promise<{
+    title: string;
+    description: string | null;
+    status: TicketStatus;
+    priority: TicketPriority;
+    type: TicketType;
+    assigneeId: number | null;
+  }> {
+    const title = row.title.trim();
+    if (!title) {
+      throw new Error('Title is required');
+    }
+
+    const statusValue = row.status.trim();
+    if (!statusValue) {
+      throw new Error('Status is required');
+    }
+    if (!isTicketStatusValue(statusValue)) {
+      throw new Error('Invalid ticket status');
+    }
+
+    const priorityValue = row.priority.trim();
+    if (!priorityValue) {
+      throw new Error('Priority is required');
+    }
+    if (!isTicketPriorityValue(priorityValue)) {
+      throw new Error('Invalid ticket priority');
+    }
+
+    const typeValue = row.type.trim();
+    if (!typeValue) {
+      throw new Error('Type is required');
+    }
+    if (!isTicketTypeValue(typeValue)) {
+      throw new Error('Invalid ticket type');
+    }
+
+    let assigneeId: number | null = null;
+    const assigneeRaw = row.assigneeId.trim();
+    if (assigneeRaw.length > 0) {
+      const parsedAssigneeId = Number(assigneeRaw);
+      if (!Number.isInteger(parsedAssigneeId) || parsedAssigneeId < 1) {
+        throw new Error('Invalid assigneeId');
+      }
+      await this.usersService.findOne(parsedAssigneeId);
+      assigneeId = parsedAssigneeId;
+    }
+
+    return {
+      title,
+      description: row.description.trim() ? row.description : null,
+      status: statusValue,
+      priority: priorityValue,
+      type: typeValue,
+      assigneeId,
+    };
+  }
+
+  private async persistImportedTicket(
+    projectId: number,
+    rowData: {
+      title: string;
+      description: string | null;
+      status: TicketStatus;
+      priority: TicketPriority;
+      type: TicketType;
+      assigneeId: number | null;
+    },
+    performedBy?: number,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const ticketRepo = manager.getRepository(Ticket);
+      const ticket = ticketRepo.create({
+        title: rowData.title,
+        description: rowData.description,
+        status: rowData.status,
+        priority: rowData.priority,
+        type: rowData.type,
+        projectId,
+        assigneeId: rowData.assigneeId,
+        dueDate: null,
+        deletedAt: null,
+      });
+
+      const saved = await ticketRepo.save(ticket);
+
+      await this.auditLogService.record(
+        {
+          action: AuditAction.CREATE,
+          entityType: AuditEntityType.TICKET,
+          entityId: saved.id,
+          performedBy: performedBy ?? rowData.assigneeId ?? projectId,
+          actorType: AuditActor.USER,
+          details: {
+            title: saved.title,
+            status: saved.status,
+            priority: saved.priority,
+            type: saved.type,
+            projectId: saved.projectId,
+            assigneeId: saved.assigneeId,
+          },
+        },
+        manager,
+      );
+    });
+  }
+
+  private importRowErrorMessage(error: unknown): string {
+    if (error instanceof NotFoundException) {
+      return error.message;
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'Failed to import row';
   }
 
   private rethrowDependencyPersistenceError(error: unknown): never {
