@@ -1050,7 +1050,7 @@ Deliverables:
 - Passing test suite
 
 ### Slice 10 — Optimistic Locking / Concurrent Edit Prevention
-Status: Planned
+Status: Completed
 
 Goal:
 Prevent simultaneous ticket/comment updates from silently overwriting each other by adding optimistic locking and explicit conflict handling.
@@ -1167,6 +1167,164 @@ Deliverables:
 - update DTO version validation
 - ConflictException mapping for stale updates
 - transaction-safe Audit Log integration
+- unit tests
+- e2e tests
+- passing test suite
+
+### Slice 11 — @Mention Mechanism in Comments
+Status: Planned
+
+Goal:
+Implement @username mentions inside comments, persist mention associations, and expose mentioned-user metadata in comment responses according to the README and assignment requirements.
+
+Requirement source:
+The assignment requires that when a user includes @username inside a comment body, the mentioned user is notified and the association is persisted for later retrieval.
+
+Scope:
+- Parse @username tokens from comment content
+- Match mentioned users by username
+- Case-insensitive username matching
+- Persist comment-to-user mention associations
+- Include mentionedUsers metadata in comment responses
+- Re-evaluate mentions on comment update
+- Remove stale mention associations after comment update
+- Add new mention associations after comment update
+- Retrieve mentions for a user
+- Paginated mentions response
+- Unit and e2e tests
+
+Endpoints:
+- POST /tickets/:ticketId/comments
+- GET /tickets/:ticketId/comments
+- PATCH /tickets/:ticketId/comments/:commentId
+- GET /users/:userId/mentions?page=...&pageSize=...
+
+Business rules:
+- comment content may include zero or more @username mentions.
+- mentioned usernames are matched case-insensitively.
+- duplicate mentions of the same username in one comment create only one association.
+- unknown usernames are ignored or rejected only if required by existing validation decisions.
+- comment responses include:
+  - mentionedUsers: [{ id, username, fullName }]
+- updating comment content re-evaluates mentions.
+- newly added mentions are persisted.
+- removed mentions are deleted.
+- GET /users/:userId/mentions returns comments where that user was mentioned.
+- mentions are returned newest first.
+- mentions endpoint returns a wrapped paginated response:
+  - data
+  - total
+  - page
+- missing user returns NotFoundException / 404.
+- comment create/update Audit Log behavior remains intact.
+
+Implementation approach:
+- add a mention persistence model if not already present.
+- keep mention parsing small and deterministic.
+- keep parsing logic centralized and unit-tested.
+- use normalized lowercase matching for usernames.
+- use database queries for retrieving mentioned comments.
+- keep controllers thin.
+- keep mention logic inside comments/users services or a focused mentions service if it keeps the design cleaner.
+- preserve existing transaction boundaries around comment create/update.
+- mention updates during comment update should occur in the same transaction as the comment mutation and Audit Log write.
+- avoid notifications infrastructure unless already implemented; persistence is sufficient for this slice.
+
+Audit Log behavior:
+- comment create/update/delete audit behavior must remain unchanged.
+- mention association updates should not create separate public audit noise unless intentionally modeled.
+- if mention persistence fails during comment create/update, the comment mutation should roll back.
+- stale optimistic-locking comment updates must not modify mentions or create Audit Log records.
+
+Testing strategy:
+TDD first.
+
+Service tests:
+- comment create with no mentions returns mentionedUsers: [].
+- comment create with one valid mention persists the association.
+- comment create with multiple mentions persists all unique mentioned users.
+- mention matching is case-insensitive.
+- duplicate mentions in one comment create one association.
+- comment response includes mentionedUsers metadata.
+- comment update re-evaluates mentions.
+- comment update adds newly mentioned users.
+- comment update removes stale mentions.
+- stale optimistic-locking update does not change mention associations.
+- missing mentioned username behavior is consistent and tested.
+- GET mentions for user returns only comments mentioning that user.
+- GET mentions for user returns newest first.
+- GET mentions for missing user fails clearly.
+- paginated mentions response includes data, total, and page.
+
+DTO / query tests:
+- mentions query supports optional page.
+- mentions query supports optional pageSize.
+- invalid page/pageSize values fail validation or are normalized consistently.
+- default pagination values are documented in tests.
+
+E2E tests:
+- create users.
+- create ticket.
+- create comment containing @username.
+- verify comment response includes mentionedUsers.
+- list comments for ticket and verify mentionedUsers are included.
+- update comment to add/remove mentions.
+- verify mention associations are re-evaluated.
+- call GET /users/:userId/mentions?page=1&pageSize=...
+- verify response shape:
+  - data
+  - total
+  - page
+- verify mentions are newest first.
+
+Architecture:
+- keep controllers thin.
+- keep parsing deterministic and testable.
+- preserve CommentsService transaction patterns.
+- preserve AuditLogService transactional usage.
+- preserve optimistic locking behavior on comment update.
+- avoid large notification systems.
+- avoid background jobs for mentions.
+- avoid overengineering.
+
+Skills followed:
+- skills/engineering/tdd/SKILL.md
+- skills/engineering/api-contract-alignment/SKILL.md
+- skills/engineering/production-hardening/SKILL.md
+- skills/engineering/audit-log-design/SKILL.md
+- skills/engineering/ai-assisted-engineering/SKILL.md
+
+Out of scope:
+- real-time notifications
+- email notifications
+- websocket delivery
+- unread mention state
+- notification preferences
+- mention permissions beyond existing user lookup
+- rich text parsing
+- project-scoped username resolution unless required later
+- changing README contract
+
+Validation checklist:
+- npm run test
+- npm run build
+- npm run test:e2e if PostgreSQL is available
+- manual smoke:
+  - create comment with @username
+  - verify mentionedUsers in response
+  - update comment to change mentions
+  - verify old mentions are removed
+  - verify new mentions are added
+  - fetch /users/:userId/mentions
+  - verify { data, total, page } response shape
+
+Deliverables:
+- mention parsing logic
+- mention persistence
+- mentionedUsers in comment responses
+- mention re-evaluation on comment update
+- GET /users/:userId/mentions endpoint
+- paginated mentions response
 - unit tests
 - e2e tests
 - passing test suite
