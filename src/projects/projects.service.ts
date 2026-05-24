@@ -5,7 +5,6 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditAction } from '../common/enums/audit-action.enum';
 import { AuditActor } from '../common/enums/audit-actor.enum';
 import { AuditEntityType } from '../common/enums/audit-entity-type.enum';
-import { Ticket } from '../tickets/entities/ticket.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -27,8 +26,6 @@ export class ProjectsService {
     private readonly projectRepository: Repository<Project>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-    @InjectRepository(Ticket)
-    private readonly ticketRepository: Repository<Ticket>,
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
     private readonly dataSource: DataSource,
@@ -80,11 +77,7 @@ export class ProjectsService {
 
   async getProjectWorkload(projectId: number): Promise<ProjectWorkloadEntry[]> {
     await this.getProjectOrThrow(projectId);
-    return buildProjectWorkload(
-      this.userRepository,
-      this.ticketRepository,
-      projectId,
-    );
+    return buildProjectWorkload(this.userRepository, projectId);
   }
 
   async update(

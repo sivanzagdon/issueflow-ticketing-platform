@@ -1,12 +1,11 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, IsNull, Not, Repository } from 'typeorm';
+import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 import { mockDataSourceWithRepositories } from '../audit-log/testing/transaction-test.helpers';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { TicketStatus } from '../common/enums/ticket-status.enum';
 import { UserRole } from '../common/enums/user-role.enum';
-import { Ticket } from '../tickets/entities/ticket.entity';
 import { UsersService } from '../users/users.service';
 import { mockProjectEntity } from './testing/project.fixtures';
 import {
@@ -19,32 +18,69 @@ import { Project } from './entities/project.entity';
 import { User } from '../users/entities/user.entity';
 import { ProjectsService } from './projects.service';
 
+type WorkloadQueryBuilder = Pick<
+  SelectQueryBuilder<User>,
+  | 'leftJoin'
+  | 'select'
+  | 'addSelect'
+  | 'where'
+  | 'groupBy'
+  | 'addGroupBy'
+  | 'getRawMany'
+>;
+
 /**
  * Slice 15 — project workload calculation (README).
  */
 describe('ProjectsService getProjectWorkload (Slice 15)', () => {
   let service: ProjectsServiceSlice15;
   let projectRepository: jest.Mocked<Repository<Project>>;
-  let userRepository: jest.Mocked<Repository<User>>;
-  let ticketRepository: jest.Mocked<Repository<Ticket>>;
+  let userRepository: jest.Mocked<Pick<Repository<User>, 'createQueryBuilder'>>;
+  let queryBuilder: jest.Mocked<WorkloadQueryBuilder>;
+  let leftJoinParams: Record<string, unknown> | undefined;
+
+  const mockAggregateRows = (
+    developers: User[],
+    counts: number[],
+  ): Array<{
+    userId: number;
+    username: string;
+    createdAt: Date;
+    openTicketCount: string;
+  }> =>
+    developers.map((developer, index) => ({
+      userId: developer.id,
+      username: developer.username,
+      createdAt: developer.createdAt,
+      openTicketCount: String(counts[index] ?? 0),
+    }));
 
   beforeEach(async () => {
+    leftJoinParams = undefined;
+    queryBuilder = {
+      leftJoin: jest.fn().mockImplementation((_entity, _alias, _condition, params) => {
+        leftJoinParams = params as Record<string, unknown>;
+        return queryBuilder;
+      }),
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      addGroupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
     projectRepository = {
       findOne: jest.fn(),
     } as unknown as jest.Mocked<Repository<Project>>;
     userRepository = {
-      find: jest.fn(),
-    } as unknown as jest.Mocked<Repository<User>>;
-    ticketRepository = {
-      count: jest.fn(),
-    } as unknown as jest.Mocked<Repository<Ticket>>;
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProjectsService,
         { provide: getRepositoryToken(Project), useValue: projectRepository },
         { provide: getRepositoryToken(User), useValue: userRepository },
-        { provide: getRepositoryToken(Ticket), useValue: ticketRepository },
         { provide: UsersService, useValue: { findOne: jest.fn() } },
         { provide: AuditLogService, useValue: { record: jest.fn() } },
         {
@@ -65,21 +101,20 @@ describe('ProjectsService getProjectWorkload (Slice 15)', () => {
     await expect(service.getProjectWorkload(404)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+    expect(userRepository.createQueryBuilder).not.toHaveBeenCalled();
   });
 
   it('returns only DEVELOPER users with README workload shape', async () => {
+    const developers = mockDeveloperUsers();
     projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 5 }));
-    userRepository.find.mockResolvedValue(mockDeveloperUsers());
-    ticketRepository.count
-      .mockResolvedValueOnce(2)
-      .mockResolvedValueOnce(0);
+    queryBuilder.getRawMany.mockResolvedValue(mockAggregateRows(developers, [2, 0]));
 
     const result = await service.getProjectWorkload(5);
 
     expectProjectWorkloadListShape(result);
-    expect(userRepository.find).toHaveBeenCalledWith({
-      where: { role: UserRole.DEVELOPER },
-      order: { createdAt: 'ASC' },
+    expect(userRepository.createQueryBuilder).toHaveBeenCalledWith('developer');
+    expect(queryBuilder.where).toHaveBeenCalledWith('developer.role = :role', {
+      role: UserRole.DEVELOPER,
     });
     expect(result).toHaveLength(2);
     expect(result.every((e) => e.username)).toBe(true);
@@ -87,67 +122,75 @@ describe('ProjectsService getProjectWorkload (Slice 15)', () => {
 
   it('excludes ADMIN users from workload list', async () => {
     projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 5 }));
-    userRepository.find.mockResolvedValue(mockDeveloperUsers());
+    queryBuilder.getRawMany.mockResolvedValue(
+      mockAggregateRows(mockDeveloperUsers(), [0, 0]),
+    );
 
     await service.getProjectWorkload(5);
 
-    const findArgs = userRepository.find.mock.calls[0]?.[0] as {
-      where: { role: UserRole };
-    };
-    expect(findArgs.where.role).toBe(UserRole.DEVELOPER);
-    expect(findArgs.where.role).not.toBe(UserRole.ADMIN);
+    expect(queryBuilder.where).toHaveBeenCalledWith('developer.role = :role', {
+      role: UserRole.DEVELOPER,
+    });
     expect(mockAdminUser().role).toBe(UserRole.ADMIN);
   });
 
   it('counts only non-DONE tickets for the requested project', async () => {
     projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 5 }));
-    userRepository.find.mockResolvedValue([mockDeveloperUsers()[0]]);
-    ticketRepository.count.mockResolvedValue(3);
+    queryBuilder.getRawMany.mockResolvedValue(
+      mockAggregateRows([mockDeveloperUsers()[0]], [3]),
+    );
 
     await service.getProjectWorkload(5);
 
-    expect(ticketRepository.count).toHaveBeenCalledWith({
-      where: {
+    expect(leftJoinParams).toEqual(
+      expect.objectContaining({
         projectId: 5,
-        assigneeId: 10,
-        status: Not(TicketStatus.DONE),
-        deletedAt: IsNull(),
-      },
-    });
+        doneStatus: TicketStatus.DONE,
+      }),
+    );
+    expect(queryBuilder.leftJoin).toHaveBeenCalledWith(
+      expect.anything(),
+      'ticket',
+      expect.stringContaining('ticket.status != :doneStatus'),
+      expect.objectContaining({ doneStatus: TicketStatus.DONE }),
+    );
   });
 
   it('excludes soft-deleted tickets from open counts', async () => {
     projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 5 }));
-    userRepository.find.mockResolvedValue([mockDeveloperUsers()[0]]);
-    ticketRepository.count.mockResolvedValue(1);
+    queryBuilder.getRawMany.mockResolvedValue(
+      mockAggregateRows([mockDeveloperUsers()[0]], [1]),
+    );
 
     await service.getProjectWorkload(5);
 
-    expect(ticketRepository.count).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ deletedAt: IsNull() }),
-      }),
+    expect(queryBuilder.leftJoin).toHaveBeenCalledWith(
+      expect.anything(),
+      'ticket',
+      expect.stringContaining('ticket.deleted_at IS NULL'),
+      expect.anything(),
     );
   });
 
   it('scopes ticket counts to the requested project only', async () => {
     projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 7 }));
-    userRepository.find.mockResolvedValue([mockDeveloperUsers()[0]]);
-    ticketRepository.count.mockResolvedValue(0);
+    queryBuilder.getRawMany.mockResolvedValue(
+      mockAggregateRows([mockDeveloperUsers()[0]], [0]),
+    );
 
     await service.getProjectWorkload(7);
 
-    expect(ticketRepository.count).toHaveBeenCalledWith(
+    expect(leftJoinParams).toEqual(
       expect.objectContaining({
-        where: expect.objectContaining({ projectId: 7 }),
+        projectId: 7,
       }),
     );
   });
 
   it('sorts workload ascending by openTicketCount', async () => {
+    const developers = mockDeveloperUsers();
     projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 5 }));
-    userRepository.find.mockResolvedValue(mockDeveloperUsers());
-    ticketRepository.count.mockResolvedValueOnce(4).mockResolvedValueOnce(1);
+    queryBuilder.getRawMany.mockResolvedValue(mockAggregateRows(developers, [4, 1]));
 
     const result = await service.getProjectWorkload(5);
 
@@ -162,13 +205,41 @@ describe('ProjectsService getProjectWorkload (Slice 15)', () => {
     );
   });
 
+  it('includes developers with zero open tickets', async () => {
+    const developers = mockDeveloperUsers();
+    projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 5 }));
+    queryBuilder.getRawMany.mockResolvedValue(mockAggregateRows(developers, [3, 0]));
+
+    const result = await service.getProjectWorkload(5);
+
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: 10, openTicketCount: 3 }),
+        expect.objectContaining({ userId: 11, openTicketCount: 0 }),
+      ]),
+    );
+    expect(result).toHaveLength(2);
+  });
+
+  it('uses a single aggregate query instead of per-developer counts', async () => {
+    projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 5 }));
+    queryBuilder.getRawMany.mockResolvedValue(
+      mockAggregateRows(mockDeveloperUsers(), [2, 0]),
+    );
+
+    await service.getProjectWorkload(5);
+
+    expect(userRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
+    expect(queryBuilder.getRawMany).toHaveBeenCalledTimes(1);
+  });
+
   it('returns empty array when no developers exist', async () => {
     projectRepository.findOne.mockResolvedValue(mockProjectEntity({ id: 5 }));
-    userRepository.find.mockResolvedValue([]);
+    queryBuilder.getRawMany.mockResolvedValue([]);
 
     const result = await service.getProjectWorkload(5);
 
     expect(result).toEqual([]);
-    expect(ticketRepository.count).not.toHaveBeenCalled();
+    expect(userRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
   });
 });
